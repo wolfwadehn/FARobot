@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<OutputType>WinExe</OutputType>
+		<TargetFramework>net10.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<UseWPF>true</UseWPF>
+		<OutDir>..\Bin</OutDir>
+		<GenerateDocumentationFile>false</GenerateDocumentationFile>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+		<Optimize>false</Optimize>
+		<ApplicationIcon>FApp.ico</ApplicationIcon>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="N:\Core\Nori.Core.csproj" />
+		<ProjectReference Include="N:\Host\WPF\Nori.Host.WPF.csproj" />
+		<ProjectReference Include="N:\Lux\Nori.Lux.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="N:\Tools\Generate\Nori.Gen.csproj" ReferenceOutputAssembly="false" OutputItemType="Analyzer" />
+	</ItemGroup>
+
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+	  <Exec Command="copy N:\bin\freetype.dll F:\bin" />
+	</Target>
+
+</Project>

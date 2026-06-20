@@ -1,0 +1,8 @@
+bin
+obj
+.vs
+*.bak
+tmpfile.*
+Publish
+Setup.Pix.*.exe
+**/launchSettings.json

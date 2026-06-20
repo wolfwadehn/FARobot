@@ -1,0 +1,132 @@
+ 0
+SECTION
+ 2
+HEADER
+ 9
+$ACADVER
+ 1
+AC1009
+ 9
+$EXTMIN
+ 10
+10
+ 20
+8
+ 30
+0
+ 9
+$EXTMAX
+ 10
+21
+ 20
+13
+ 30
+0
+ 9
+$VIEWCTR
+ 10
+15.5
+ 20
+10.5
+ 9
+$VIEWSIZE
+ 40
+7.26
+ 9
+$CLAYER
+ 8
+0
+ 0
+ENDSEC
+ 0
+SECTION
+ 2
+TABLES
+ 0
+TABLE
+ 2
+LAYER
+ 70
+1
+ 0
+LAYER
+ 2
+0
+ 70
+0
+ 62
+0
+ 6
+CONTINUOUS
+ 0
+ENDTAB
+ 0
+ENDSEC
+ 0
+SECTION
+ 2
+ENTITIES
+ 0
+LINE
+ 8
+0
+ 10
+10
+ 20
+10
+ 11
+14
+ 21
+13
+ 0
+LINE
+ 8
+0
+ 10
+11
+ 20
+10
+ 11
+15
+ 21
+13
+ 0
+LINE
+ 8
+0
+ 10
+16
+ 20
+13
+ 11
+21
+ 21
+8
+ 0
+LINE
+ 8
+0
+ 10
+17
+ 20
+13
+ 11
+21
+ 21
+9
+ 0
+LINE
+ 8
+0
+ 10
+18
+ 20
+13
+ 11
+20.12132
+ 21
+10.87868
+ 0
+ENDSEC
+ 0
+EOF

@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/Nori/">
+    <Project Path="N:/Core/Nori.Core.csproj" />
+    <Project Path="N:/Lux/Nori.Lux.csproj" />
+    <Project Path="N:/Host/WPF/Nori.Host.WPF.csproj" />
+    <Project Path="N:/Host/GLFW/Nori.Host.GLFW.csproj" />
+    <Project Path="N:/Tools/Generate/Nori.Gen.csproj" />
+  </Folder>
+  <Folder Name="/FlaUI/">
+    <Project Path="../FlaUI/src/FlaUI.Core/FlaUI.Core.csproj" />
+    <Project Path="../FlaUI/src/FlaUI.UIA3/FlaUI.UIA3.csproj" />
+  </Folder>
+  <Project Path="FApp/FApp.csproj" />
+  <Project Path="Test/FApp.Test.csproj" />
+  <Project Path="UITest/FApp.UITest.csproj" />
+  <Project Path="Tools/Console/FApp.Con.csproj" />
+</Solution>

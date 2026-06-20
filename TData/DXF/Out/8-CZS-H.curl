@@ -1,0 +1,53 @@
+(Dwg2){
+  Layers:[
+    { Name:0 Color:White Linetype:Continuous }*
+    { Name:OUTER_PROFILES Color:White Linetype:Continuous }
+    { Name:INTERIOR_PROFILES Color:White Linetype:Continuous }
+    { Name:BEND Color:White Linetype:Continuous }
+    { Name:BEND_EXTENT Color:White Linetype:Continuous }
+  ]
+  Styles:[ { Name:STANDARD Font:"" XScale:1 } ]
+  DimStyles:[
+    {
+      Name:Standard
+      ArrowSize:0.18
+      ExtOffset:0.0625
+      ExtExtend:0.18
+      TextSize:0.18
+      DimCen:0.09
+      DimGap:0.09
+      TextPos:Centered
+      Flags:TIHorz,TOHorz
+      LinDecimal:4
+      Style:STANDARD
+    }
+  ]
+  Ents:[
+    (E2Poly){ Layer:OUTER_PROFILES Poly:M0,79.532079V107.138495H899.6V79.532079 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C40,5.6,1.5 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C28,94.138495,3 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C313.2,5.6,1.5 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C859.6,5.6,1.5 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C871.6,94.138495,3 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C731,94.138495,3 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C586.4,5.6,1.5 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C168.6,94.138495,3 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C590.4,94.138495,3 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C309.2,94.138495,3 }
+    (E2Poly){ Layer:INTERIOR_PROFILES Poly:C449.8,94.138495,3 }
+    (E2Poly){ Layer:0 Poly:M0,77.532079Q0,79.532079,2 }
+    (E2Poly){ Layer:0 Poly:M0,40.319247Q0,42.319247,2 }
+    (E2Poly){ Layer:0 Poly:M0,13.106416Q0,15.106416,2 }
+    (E2Poly){ Layer:0 Poly:M899.6,79.532079Q899.6,77.532079,2 }
+    (E2Poly){ Layer:0 Poly:M899.6,42.319247Q899.6,40.319247,2 }
+    (E2Poly){ Layer:0 Poly:M899.6,15.106416Q899.6,13.106416,2 }
+    (E2Poly){ Layer:OUTER_PROFILES Poly:M0,42.319247V77.532079 }
+    (E2Poly){ Layer:OUTER_PROFILES Poly:M0,15.106416V40.319247 }
+    (E2Poly){ Layer:OUTER_PROFILES Poly:M899.6,77.532079V42.319247 }
+    (E2Poly){ Layer:OUTER_PROFILES Poly:M899.6,40.319247V15.106416 }
+    (E2Poly){ Layer:OUTER_PROFILES Poly:M899.6,13.106416V0H0V13.106416 }
+    (E2Poly){ Layer:0 Poly:M1,78.532079H898.6 }
+    (E2Poly){ Layer:0 Poly:M898.6,41.319247H1 }
+    (E2Poly){ Layer:0 Poly:M1,14.106416H898.6 }
+  ]
+}

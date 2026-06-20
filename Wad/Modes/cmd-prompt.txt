@@ -1,0 +1,261 @@
+Robo
+   Robot
+
+Arc2P
+   2-Point Arc | Radius | Start | End
+   Pick start point [*Ctrl*=Repeat]
+   Pick end point [*Ctrl*=Clockwise, *Shift*=Major Arc]
+
+Arc
+   Arc | Center | Radius | Start angle | End angle
+   Pick center point [*Ctrl*=Repeat]
+   Pick start point of Arc
+   Pick end point of Arc [*Ctrl*=Clockwise]
+
+Circle
+   Circle | Center | Radius | Diameter | Diameter
+   Pick center point [*Ctrl*=Repeat]
+   Pick point on Circle
+
+Circle2P
+   2-Point Circle | Radius | Start | End
+   Pick start point [*Ctrl*=Repeat]
+   Pick end point [*Ctrl*=Clockwise]
+
+Line
+   Line | Start | End
+   Pick start point [*Ctrl*=Repeat]
+   Pick end point
+
+Rect
+   Rectangle | Corner1 | Corner2
+   Pick first corner [*Ctrl*=Repeat]
+   Pick opposite corner
+
+RectCenter
+   Center-Point Rectangle | Center | Corner
+   Pick center point [*Ctrl*=Repeat]
+   Pick corner point
+
+Point
+   Point | Point
+   Click to create point
+
+Chamfer
+   Chamfer | Distance1 | Distance2
+   Enter chamfer distances and click on corner to chamfer [*Ctrl*=All corners]
+
+Arc3P
+   3-Point Arc | Point1 | Point2 | Point3
+   Pick start point of arc [*Ctrl*=Repeat]
+   Pick another point lying on the arc
+   Pick end point of arc
+
+InFillet
+   Inside Fillet | Radius
+   Enter fillet radius and click on the corner to fillet [*Ctrl*=All corners]
+
+PolyInscribe
+   Inscribed Polygon | Sides | Center | Radius | Angle
+   Pick center point [*Ctrl*=Repeat]
+   Pick vertex point
+
+PolyCircumscribe
+   Circumscribed Polygon | Sides | Center | Radius | Angle
+   Pick center point [*Ctrl*=Repeat]
+   Pick edge midpoint
+
+Circle3P
+   3-Point Circle | Point1 | Point2 | Point3
+   Pick first point on Circle [*Ctrl*=Repeat]
+   Pick second point on Circle
+   Pick third point on Circle
+
+CornerStep
+   Corner Step | Distance1 | Distance2
+   Enter step distances and click on corner [*Ctrl*=All corners]
+
+ArcTangent
+   Tangent-Point Arc | Start | Angle | End
+   Pick start point of Arc [*Ctrl*=Repeat]
+   Pick point on tangent line
+   Pick end point of Arc
+
+PolyEdge
+   Edge Polygon | Sides | Start point | End point
+   Pick start point of edge [*Ctrl*=Repeat]
+   Pick end point of edge
+
+PolarArray
+   Polar Array | Elements | Center | Angle Step
+   Enter number of elements, and click to set center point of array
+   Click a reference point
+   Click again to indicate angular pitch of array
+
+Fillet
+   Fillet | Radius
+   Enter fillet radius and click on the corner to fillet [*Ctrl*=All corners]
+
+Pick
+   Pick  |
+   Click on an entity to select it [*Shift*=Incremental, *Ctrl*=Select all entities within this polyline]
+
+Trim
+   Trim |
+   Pick section to trim
+
+Extend
+   Extend | Distance
+   Pick section to extend
+
+Move
+   Move | DX | DY
+   Pick move start point
+   Pick move end point [*Ctrl*=Copy]
+
+EdgeRecess
+   Edge Recess | Offset | Width | Depth
+   Enter distance from the corner, width and depth of recess, and click on edge
+
+LinePerp
+   Perpendicular Line | Length
+   Click on segment to construct perpendicular line to
+   Type in length and click to position line [*Ctrl*=Both sides]
+
+EdgeU
+   Edge U-Cut | Offset | Width | Depth | Radius
+   Enter distance from corner, width, depth and radius of U, and click on edge
+
+EdgeV
+   Edge V-Cut | Offset | Width | Depth
+   Enter distance from the corner, width and depth of the V recess, and click on edge
+
+Scale
+   Scale | Anchor point | Factor
+   Pick anchor point
+   Pick begining reference point
+   Pick ending reference point [*Ctrl*=Copy]
+
+RectArray
+   Rectangular Array | Columns | Rows | Column Pitch | Row Pitch | Angle
+   Enter row/column count and row/column pitch, and click a reference point
+   Click again to enter horizontal and vertical pitch of array
+
+Rotate
+   Rotate | Center | Angle
+   Pick centre of rotation
+   Pick start point
+   Pick end point [*Ctrl*=Copy]
+
+KeySlot
+   Key Slot | Width | Depth | Angle
+   Enter parameters, and click on a circle (or) an arc to make key slot
+
+LineParallel
+   Line Parallel | Distance
+   Pick a line or arc
+   Enter an offset [*Ctrl*=Both sides]
+
+Mirror
+   Mirror | Start | End
+   Pick beginning of mirror line
+   Pick end of mirror line [*Ctrl*=Copy]
+
+MarkOpenPlines
+   Mark Open Polylines |
+
+HighlightOverlaps
+   Highlight Overlaps |
+   Press [*Ctrl*] and click anywhere to clean all overlaps
+
+MarkSmallSegs
+   Mark Small Segments | Threshold Length
+   Type in threshold length value, and press Enter to mark all small segments
+
+MarkNonTangent
+   Mark Non-Tangent Corners | Min Angle | Max Angle
+   Type in angle limits, and press Enter to mark non-tangent corners
+
+MarkLargeRadius
+   Mark Large Radius | Threshold Radius
+   Type in threshold radius value, and press Enter to mark all large radii segments
+
+RemoveSmallSegs
+   Remove Small Segments | Threshold Length
+   Type in threshold length value, and click on first corner of process area
+   Click on other corner of process area
+
+Info
+   Info |
+   Hover over an entity to get information about the entity
+
+Measure
+   Measure |
+   Pick a point to start measuring
+   Hover over the end point. Click anywhere to stop measuring
+
+EditBend
+   Bend |
+   Click on a line to create a bend, or click on a bend to edit
+
+DimAngle
+   Angle Dimension | Text | Tolerance
+   Select first line
+   Select second line
+   Place dimension
+
+DimAngle3P
+   3-P Angle | Text | Tolerance
+   Click on point at which angle is measured
+   Click on point defining base of angle
+   Click on point defining angle
+   Place dimension
+
+DimDiameter
+   Diameter Dimension | Text | Tolerance
+   Pick a circle
+   Place dimension [*Shift*=Full diameter]
+
+DimRadius
+   Radius Dimension | Text | Tolerance
+   Pick an arc segment
+   Place dimension [*Shift*=Include center]
+
+Dim2P
+   Linear Dimension | Text | Tolerance | Angle
+   Pick first dimension point [*Ctrl*=Pick aligned reference line, *Shift*=Pick perpendicular reference line]
+   Pick second dimension point [*Shift*=Set Angle]
+   Place dimension
+
+DimBaseline
+   Baseline Dimension | Text | Tolerance | Angle
+   Pick first dimension point [*Ctrl*=Pick aligned reference line, *Shift*=Pick perpendicular reference line]
+   Pick second dimension point [*Shift*=Set Angle]
+   Place dimension
+
+DimContinue
+   Continue Dimension | Text | Tolerance | Angle
+   Pick first dimension point [*Ctrl*=Pick aligned reference line, *Shift*=Pick perpendicular reference line]
+   Pick second dimension point [*Shift*=Set Angle]
+   Place dimension
+
+DimSegment
+   Segment Dimension | Text | Tolerance
+   Click on line segment to dimension
+   Place dimension
+
+DimCallout
+	Callout Dimension | Text | Tolerance
+	Pick callout reference point
+	Pick callout location
+
+HelperLineH
+   Horizontal Helper Line | Distance
+
+HelperLineV
+   Vertical Helper Line | Distance
+
+DeleteHelperLines
+   Delete Helper Lines |
+
+Nil
