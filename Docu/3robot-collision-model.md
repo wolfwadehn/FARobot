@@ -109,11 +109,14 @@ The box uses group key:
 
 ### Default triangle group
 
-`TriangleDialog` defaults `Group` to `"Box"`.
+`TriangleDialog` defaults `Group` to `"Group1"` when the group field is left empty.
 
-### Consequence
+### Box group tracking
 
-A triangle left in default group becomes visually coupled to the box obstacle's group state.
+The box obstacle collision state is tracked separately with a dedicated `bool boxHit` variable
+inside `CheckCollisions()`, independent of any triangle group named `"Box"`.
+This means a triangle in a group called `"Box"` does not interfere with box collision coloring,
+and the box does not interfere with triangle group coloring.
 
 ---
 

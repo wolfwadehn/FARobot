@@ -244,7 +244,7 @@ public partial class MainWindow : Window {
       mRobotWin.Top    = wa.Top;
       mRobotWin.Closed += (_, _) => SetDwg (mDwg);
       mRobotWin.Show ();
-      mRobotScene.CreateUI (mRobotWin.Panel);
+      mRobotWin.SetScene (mRobotScene);
       if (mTcpOffsetBtn == null && mToolbarHost.Child is Toolbar tb)
          mTcpOffsetBtn = tb.AddButton ("TCP Offset", ShowTcpOffsetDlg);
       if (mTcpOffsetBtn != null) mTcpOffsetBtn.Visibility = Visibility.Visible;
@@ -259,6 +259,9 @@ public partial class MainWindow : Window {
    RobotScene?  mRobotScene;
    RobotWindow? mRobotWin;
    System.Windows.Controls.Border? mTcpOffsetBtn;
+
+   [CmdSink ("cmd:RobotHome")]
+   void RobotHome () => mRobotScene?.GoHome ();
 
    [CmdSink ("cmd:TcpLegend")]
    void TcpLegend () {

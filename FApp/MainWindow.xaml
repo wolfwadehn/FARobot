@@ -34,6 +34,7 @@
             <MenuItem Header="Zoom _Extents" Tag="cmd:ZoomExtents" InputGestureText="Ctrl+E"/>
             <Separator/>
             <MenuItem Header="_Robot..." Tag="cmd:Robot" IsTabStop="False"/>
+            <MenuItem Header="Robot _Home" Tag="cmd:RobotHome" IsTabStop="False"/>
             <MenuItem Header="TCP _Legend..." Tag="cmd:TcpLegend" IsTabStop="False"/>
          </MenuItem>
          <MenuItem Header="About!" Tag="cmd:About" IsTabStop="False"/>
