@@ -14,17 +14,12 @@ public partial class TcpOffsetDialog : Window {
       mZ.Text = current.Z.ToString ("F1", CultureInfo.InvariantCulture);
    }
 
-   public Vector3 Offset => new (Parse (mX.Text), Parse (mY.Text), Parse (mZ.Text));
+   public Vector3 Offset => new (Util.ParseDouble (mX.Text), Util.ParseDouble (mY.Text), Util.ParseDouble (mZ.Text));
 
    void OnOK (object sender, RoutedEventArgs e) {
       foreach (var tb in new[] { mX, mY, mZ })
-         if (!TryParse (tb.Text, out _)) { tb.Focus (); tb.SelectAll (); return; }
+         if (!Util.TryParseDouble (tb.Text, out _)) { tb.Focus (); tb.SelectAll (); return; }
       DialogResult = true;
    }
-
-   static double Parse (string s) { TryParse (s, out double v); return v; }
-
-   static bool TryParse (string s, out double v) =>
-      double.TryParse (s.Replace (',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out v);
 }
 #endregion

@@ -2,7 +2,6 @@
 // ║╬╠╬╦╗ RobotScene.cs
 // ║╔╣╠║╣ 3D robot scene with FK/IK solver and box collision detection
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
-using System.Windows.Controls;
 using System.Windows.Threading;
 namespace FApp;
 
@@ -26,6 +25,8 @@ class RobotScene : Scene3 {
       mBoxMesh    = Mesh3.Extrude ([boxPoly], 200, Matrix3.Translation (0, 0, -100), ETess.Medium);
       mBoxOBB     = OBBTree.From (mBoxMesh);
       mBoxVN      = new Mesh3VN (mBoxMesh) { Mode = EShadeMode.Glass, Color = Color4.Blue };
+      // ViewModel must exist before BoxWorldXfm is first read (mBoxXfm init below).
+      ViewModel   = new RobotViewModel ();
       mBoxXfm     = new XfmVN (BoxWorldXfm, mBoxVN);
 
       foreach (var m in mMech.EnumTree ()) {
@@ -34,10 +35,21 @@ class RobotScene : Scene3 {
          else if (m.Mesh != null) mLinkOBBs[m] = OBBTree.From (m.Mesh);
       }
 
-      mGripper   = new XfmVN (Matrix3.Identity, new GroupVN ([]));
-      mTriGroup  = new GroupVN ([]);
-      (mX, mY, mZ) = (mHome.Org.X, mHome.Org.Y, mHome.Org.Z + LJointZ);
-      mCS        = mHome; ComputeIK ();
+      mGripper  = new XfmVN (Matrix3.Identity, new GroupVN ([]));
+      mTriGroup = new GroupVN ([]);
+
+      // ── ViewModel wiring ──────────────────────────────────────────────────
+      // Populate joints and subscribe events, then trigger the initial IK solve.
+      ViewModel.Joints                = [.. mMech.EnumTree ()
+                                               .Where  (m => m.Joint != EJoint.None)
+                                               .Select (m => new JointSliderModel (m, OnFK))];
+      ViewModel.IKChanged           += ComputeIK;
+      ViewModel.BoxChanged          += UpdateBox;
+      ViewModel.HomeRequested       += GoHome;
+      ViewModel.LoadScriptRequested += LoadScript;
+      ViewModel.AddRequested        += AddCurrentPose;
+      ViewModel.PlayRequested       += TogglePlay;
+      ViewModel.SetIKPose (mHome.Org.X, mHome.Org.Y, mHome.Org.Z + LJointZ, -90, 0, 0);
 
       mPlayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds (500) };
       mPlayTimer.Tick += (_, _) => TickScript ();
@@ -54,115 +66,14 @@ class RobotScene : Scene3 {
    }
 
    // Properties ---------------------------------------------------------------
-   public Mechanism Tip       => mTip;
-   public Vector3   TcpOffset { get => mTcpOffset; set { mTcpOffset = value; ComputeIK (); } }
+   public RobotViewModel ViewModel { get; }
+   public Mechanism      Tip       => mTip;
+   public Vector3        TcpOffset { get => mTcpOffset; set { mTcpOffset = value; ComputeIK (); } }
+
    public (double X, double Y, double Z, double Rx, double Ry, double Rz,
            Mechanism[] Joints) InfoData
-      => (mX, mY, mZ, mRx, mRy, mRz, mJoints);
-
-   // Methods ------------------------------------------------------------------
-   public void CreateUI (UIElementCollection ui) {
-      ui.Clear ();
-
-      AddSection ("Forward Kinematics");
-      foreach (var m in mMech.EnumTree ()) {
-         if (m.Joint == EJoint.None) continue;
-         AddSlider (m.Name, m.JMin, m.JMax, m.JValue, v => { m.JValue = v; OnFK (); });
-      }
-
-      AddSection ("Inverse Kinematics");
-      AddSlider ("X",  -2000, 3000, mX,  v => { mX  = v; ComputeIK (); });
-      AddSlider ("Y",  -2000, 2000, mY,  v => { mY  = v; ComputeIK (); });
-      AddSlider ("Z",  -1000, 3200, mZ,  v => { mZ  = v; ComputeIK (); });
-      AddSlider ("Rx", -180,  180,  mRx, v => { mRx = v; ComputeIK (); });
-      AddSlider ("Ry", -180,  180,  mRy, v => { mRy = v; ComputeIK (); });
-      AddSlider ("Rz", -180,  180,  mRz, v => { mRz = v; ComputeIK (); });
-
-      AddSection ("Obstacle");
-      AddSlider ("BX", -1200, 1200, mBX, v => { mBX = v; UpdateBox (); });
-      AddSlider ("BY", -1200, 1200, mBY, v => { mBY = v; UpdateBox (); });
-      AddSlider ("BZ",  0,    1500, mBZ, v => { mBZ = v; UpdateBox (); });
-
-      AddSection ("Script");
-      var pathBox = new TextBox {
-         Margin     = new Thickness (6, 0, 6, 4),
-         Text       = "N:/Demos/WPFDemo/robot_script.txt",
-         Background = System.Windows.Media.Brushes.DimGray,
-         Foreground = System.Windows.Media.Brushes.WhiteSmoke
-      };
-      ui.Add (pathBox);
-      var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness (6, 0, 6, 4) };
-      var loadBtn = new Button { Content = "Load" };
-      loadBtn.Click += (_, _) => LoadScript (pathBox.Text);
-      mPlayBtn = new Button { Content = "Play" };
-      mPlayBtn.Click += (_, _) => TogglePlay ();
-      row.Children.Add (loadBtn);
-      row.Children.Add (mPlayBtn);
-      ui.Add (row);
-
-      AddSection ("Collision Triangles");
-      var addBtn = new Button { Content = "Add Triangle…",
-                                HorizontalAlignment = HorizontalAlignment.Left,
-                                Margin = new Thickness (6, 0, 6, 6) };
-      addBtn.Click += (_, _) => ShowAddTriDlg ();
-      ui.Add (addBtn);
-      mTriListPanel = new StackPanel ();
-      ui.Add (mTriListPanel);
-      RefreshTriList ();
-
-      void AddSection (string text) {
-         ui.Add (new TextBlock {
-            Text       = text,
-            FontSize   = 13,
-            FontWeight = System.Windows.FontWeights.Bold,
-            Foreground = System.Windows.Media.Brushes.LightSteelBlue,
-            Margin     = new Thickness (8, 10, 0, 4)
-         });
-      }
-
-      void AddSlider (string label, double min, double max, double value, Action<double> setter) {
-         var sp  = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness (4, 0, 4, 2) };
-         var lbl = new TextBlock {
-            Text              = label, Width = 22,
-            TextAlignment     = System.Windows.TextAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground        = System.Windows.Media.Brushes.Silver
-         };
-         var tb = new TextBox {
-            Width             = 55, Text = value.ToString ("F1"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin            = new Thickness (2, 1, 2, 4),
-            Background        = System.Windows.Media.Brushes.DimGray,
-            Foreground        = System.Windows.Media.Brushes.WhiteSmoke,
-            BorderThickness   = new Thickness (1),
-            TextAlignment     = System.Windows.TextAlignment.Right,
-            Padding           = new Thickness (3, 1, 3, 1)
-         };
-         var sl = new Slider {
-            Minimum = min, Maximum = max, Value = value,
-            MinWidth = 130, IsSnapToTickEnabled = false,
-            Margin   = new Thickness (4, 1, 4, 4)
-         };
-         sl.ValueChanged += (_, e) => {
-            if (!mSyncingUI) setter (e.NewValue);
-            tb.Text = e.NewValue.ToString ("F1");
-         };
-         void Commit () {
-            if (double.TryParse (tb.Text, System.Globalization.NumberStyles.Float,
-                                 System.Globalization.CultureInfo.InvariantCulture, out double v))
-               sl.Value = Math.Clamp (v, min, max);
-            else
-               tb.Text = sl.Value.ToString ("F1");
-         }
-         tb.LostFocus += (_, _) => Commit ();
-         tb.KeyDown   += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Commit (); };
-         sp.Children.Add (lbl);
-         sp.Children.Add (sl);
-         sp.Children.Add (tb);
-         ui.Add (sp);
-         mSliders[label] = sl;
-      }
-   }
+      => (ViewModel.X, ViewModel.Y, ViewModel.Z,
+          ViewModel.Rx, ViewModel.Ry, ViewModel.Rz, mJoints);
 
    // Implementation -----------------------------------------------------------
    public override void Detached () => mPlayTimer.IsEnabled = false;
@@ -174,15 +85,11 @@ class RobotScene : Scene3 {
    }
 
    void SnapToTriNode (Point3 p1, Vector3 normal) {
-      (mRx, mRy, mRz) = NormalToEuler (normal);
-      mX = p1.X;
-      mY = p1.Y;
-      mZ = p1.Z;
-      ComputeIK ();
-      SyncIKSliders ();
+      var (rx, ry, rz) = NormalToEuler (normal);
+      ViewModel.SetIKPose (p1.X, p1.Y, p1.Z, rx, ry, rz);
    }
 
-   // Maps a unit normal to (Rx, Ry, Rz=0) so that VecZ after cs*=Rot(X,Rx)*Rot(Y,Ry) equals normal.
+   // Maps a unit normal to (Rx, Ry, Rz=0) so VecZ after cs*=Rot(X,Rx)*Rot(Y,Ry) equals normal.
    // VecZ formula: (sin(Ry), -sin(Rx)*cos(Ry), cos(Rx)*cos(Ry))
    static (double Rx, double Ry, double Rz) NormalToEuler (Vector3 n) {
       double ry    = Math.Asin (Math.Clamp (n.X, -1, 1));
@@ -192,29 +99,31 @@ class RobotScene : Scene3 {
    }
 
    void SnapToFace (Point3 hit) {
-      double rx = hit.X - mBX, ry = hit.Y - mBY, rz = hit.Z - mBZ;
+      double rx = hit.X - ViewModel.BX, ry = hit.Y - ViewModel.BY, rz = hit.Z - ViewModel.BZ;
       double ax = Math.Abs (rx), ay = Math.Abs (ry), az = Math.Abs (rz);
-      // VecZ points from TCP toward wrist (outward from face), so VecZ = outward face normal.
+      // VecZ points outward from the clicked face, which is the approach direction for the TCP.
       // Rx=0 → VecZ=+Z, Rx=-90 → VecZ=+Y, Ry=+90 → VecZ=+X (and their negatives).
+      double newRx, newRy, newRz;
       if (ax >= ay && ax >= az)
-         (mRx, mRy, mRz) = rx > 0 ? (0.0, 90.0, 0.0) : (0.0, -90.0, 0.0);
+         (newRx, newRy, newRz) = rx > 0 ? (0.0, 90.0, 0.0) : (0.0, -90.0, 0.0);
       else if (ay >= az)
-         (mRx, mRy, mRz) = ry > 0 ? (-90.0, 0.0, 0.0) : (90.0, 0.0, 0.0);
+         (newRx, newRy, newRz) = ry > 0 ? (-90.0, 0.0, 0.0) : (90.0, 0.0, 0.0);
       else
-         (mRx, mRy, mRz) = rz > 0 ? (0.0, 0.0, 0.0) : (180.0, 0.0, 0.0);
-      mX = hit.X;
-      mY = hit.Y;
-      mZ = hit.Z;
-      ComputeIK ();
-      SyncIKSliders ();
+         (newRx, newRy, newRz) = rz > 0 ? (0.0, 0.0, 0.0) : (180.0, 0.0, 0.0);
+      ViewModel.SetIKPose (hit.X, hit.Y, hit.Z, newRx, newRy, newRz);
    }
 
+   // Step 1: Build TCP orientation from Euler angles (X-then-Y convention).
+   // Step 2: Subtract LJointZ — the solver works in the L-joint frame, not world Z.
+   // Step 3: Back-solve wrist = TCP_pos − R × TCP_offset.
+   // Step 4: Pass wrist pose to the analytic solver (up to 8 closed-form solutions).
+   // Step 5: Apply the first valid solution to joint angles.
    void ComputeIK () {
-      var cs  = CoordSystem.World;
-      cs *= Matrix3.Rotation (EAxis.X, mRx.D2R ());
-      cs *= Matrix3.Rotation (EAxis.Y, mRy.D2R ());
-      cs *= Matrix3.Rotation (EAxis.Z, mRz.D2R ());
-      var tcp   = new Vector3 (mX, mY, mZ - LJointZ);
+      var cs    = CoordSystem.World;
+      cs       *= Matrix3.Rotation (EAxis.X, ViewModel.Rx.D2R ());
+      cs       *= Matrix3.Rotation (EAxis.Y, ViewModel.Ry.D2R ());
+      cs       *= Matrix3.Rotation (EAxis.Z, ViewModel.Rz.D2R ());
+      var tcp   = new Vector3 (ViewModel.X, ViewModel.Y, ViewModel.Z - LJointZ);
       var wrist = tcp - cs.VecX * mTcpOffset.X - cs.VecY * mTcpOffset.Y - cs.VecZ * mTcpOffset.Z;
       mCS = cs * Matrix3.Translation (wrist);
       mSolver.ComputeStances (mCS.Org, mCS.VecZ, mCS.VecX);
@@ -230,18 +139,34 @@ class RobotScene : Scene3 {
    }
 
    void OnFK () {
+      var tipCs    = CoordSystem.World * mTip.Xfm;
+      var off      = mTcpOffset;
+      var tcp      = tipCs.Org + tipCs.VecX * off.X + tipCs.VecY * off.Y + tipCs.VecZ * off.Z;
+      var (rx, ry, rz) = MatrixToEuler (tipCs);
+      ViewModel.SetIKDisplay (tcp.X, tcp.Y, tcp.Z + LJointZ, rx, ry, rz);
+      foreach (var js in ViewModel.Joints) js.Refresh ();
       mGripper.Xfm = mTip.Xfm;
       CheckCollisions ();
    }
 
-   void SyncIKSliders () {
-      mSyncingUI = true;
-      foreach (var (key, val) in new[] { ("X", mX), ("Y", mY), ("Z", mZ), ("Rx", mRx), ("Ry", mRy), ("Rz", mRz) })
-         if (mSliders.TryGetValue (key, out var s)) s.Value = Math.Clamp (val, s.Minimum, s.Maximum);
-      mSyncingUI = false;
+   // Extracts XYZ Euler angles (degrees) from a coordinate system.
+   // Inverse of: cs *= Rot(X,Rx) * Rot(Y,Ry) * Rot(Z,Rz) used in ComputeIK.
+   static (double Rx, double Ry, double Rz) MatrixToEuler (CoordSystem cs) {
+      double ry    = Math.Asin (Math.Clamp (cs.VecZ.X, -1, 1));
+      double cosRy = Math.Cos (ry);
+      double rx, rz;
+      if (Math.Abs (cosRy) > 1e-6) {
+         rx = Math.Atan2 (-cs.VecZ.Y, cs.VecZ.Z);
+         rz = Math.Atan2 (-cs.VecY.X, cs.VecX.X);
+      } else {
+         rx = Math.Atan2 (cs.VecX.Y, cs.VecY.Y);
+         rz = 0;
+      }
+      const double R2D = 180 / Math.PI;
+      return (rx * R2D, ry * R2D, rz * R2D);
    }
 
-   Matrix3 BoxWorldXfm => Matrix3.Translation (mBX, mBY, mBZ);
+   Matrix3 BoxWorldXfm => Matrix3.Translation (ViewModel.BX, ViewModel.BY, ViewModel.BZ);
 
    void UpdateBox () {
       mBoxXfm.Xfm = BoxWorldXfm;
@@ -274,6 +199,14 @@ class RobotScene : Scene3 {
          tri.IsColliding = groupHit[tri.Group];
    }
 
+   void AddCurrentPose () {
+      var ic   = System.Globalization.CultureInfo.InvariantCulture;
+      var line = string.Format (ic, "{0:F1} {1:F1} {2:F1} {3:F1} {4:F1} {5:F1}",
+                                ViewModel.X, ViewModel.Y, ViewModel.Z,
+                                ViewModel.Rx, ViewModel.Ry, ViewModel.Rz);
+      File.AppendAllText (ViewModel.ScriptPath, line + Environment.NewLine);
+   }
+
    void LoadScript (string path) {
       mScript.Clear (); mScriptIdx = 0;
       try {
@@ -293,31 +226,29 @@ class RobotScene : Scene3 {
    void TogglePlay () {
       if (mPlayTimer.IsEnabled) {
          mPlayTimer.IsEnabled = false;
-         mPlayBtn!.Content    = "Play";
+         ViewModel.PlayLabel  = "Play";
       } else {
          if (mScript.Count == 0) { Lib.Trace ("No script loaded"); return; }
          mScriptIdx           = 0;
          mPlayTimer.IsEnabled = true;
-         mPlayBtn!.Content    = "Stop";
+         ViewModel.PlayLabel  = "Stop";
       }
    }
 
    void TickScript () {
       if (mScriptIdx >= mScript.Count) {
-         mPlayTimer.IsEnabled = false; mPlayBtn!.Content = "Play"; return;
+         mPlayTimer.IsEnabled = false;
+         ViewModel.PlayLabel  = "Play";
+         return;
       }
       var pt = mScript[mScriptIdx++];
-      (mX, mY, mZ, mRx, mRy, mRz) = (pt.X, pt.Y, pt.Z, pt.Rx, pt.Ry, pt.Rz);
-      ComputeIK ();
+      ViewModel.SetIKPose (pt.X, pt.Y, pt.Z, pt.Rx, pt.Ry, pt.Rz);
    }
 
-   void ShowAddTriDlg () {
-      var dlg = new TriangleDialog ();
-      if (dlg.ShowDialog () is true)
-         AddTri (dlg.TriName, dlg.Group, dlg.P1, dlg.P2, dlg.P3);
-   }
+   internal void GoHome () =>
+      ViewModel.SetIKPose (mHome.Org.X, mHome.Org.Y, mHome.Org.Z + LJointZ, -90, 0, 0);
 
-   void AddTri (string name, string group, Point3 p1, Point3 p2, Point3 p3) {
+   internal void AddTri (string name, string group, Point3 p1, Point3 p2, Point3 p3) {
       var tri = new CollisionTri (name, group, GroupColor (group), p1, p2, p3);
       mTris.Add (tri);
       mTriGroup.Add (tri.VN);
@@ -342,38 +273,27 @@ class RobotScene : Scene3 {
       RefreshTriList ();
    }
 
+   // Rebuilds ViewModel.Triangles so the XAML ItemsControl reflects the current list.
    void RefreshTriList () {
-      if (mTriListPanel is null) return;
-      mTriListPanel.Children.Clear ();
+      ViewModel.Triangles.Clear ();
       foreach (var tri in mTris) {
-         var t   = tri;
-         var row = new StackPanel { Orientation = Orientation.Horizontal,
-                                    Margin = new Thickness (6, 2, 6, 2) };
-         row.Children.Add (new TextBlock {
-            Text = t.Name, Width = 110,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = System.Windows.Media.Brushes.Silver
-         });
+         var t        = tri;
          var wpfColor = mGroupWpfColors.GetValueOrDefault (t.Group, System.Windows.Media.Colors.Gray);
-         row.Children.Add (new TextBlock {
-            Text = t.Group, Width = 62,
-            VerticalAlignment = VerticalAlignment.Center,
-            Foreground = new System.Windows.Media.SolidColorBrush (wpfColor)
-         });
-         var del = new Button { Content = "×", Padding = new Thickness (5, 1, 5, 1),
-                                               Margin  = new Thickness (2, 2, 2, 2) };
-         del.Click += (_, _) => RemoveTri (t);
-         row.Children.Add (del);
-         mTriListPanel.Children.Add (row);
+         var brush    = new System.Windows.Media.SolidColorBrush (wpfColor);
+         ViewModel.Triangles.Add (new CollisionTriVM (t.Name, t.Group, brush, () => RemoveTri (t)));
       }
    }
 
    // Fields -------------------------------------------------------------------
-   // World Z of the L joint = Base.Sockets.Z(266.5) + S.Sockets.Z(298.5); solver expects Z relative to this plane
+   // LJointZ: world Z height of the L-joint rotation axis.
+   //   = Base.Sockets.Z (266.5 mm) + S-link.Sockets.Z (298.5 mm) = 565 mm.
+   //   The IK solver expects all Z values relative to this plane, not from the floor.
    const double LJointZ = 565;
-   readonly CoordSystem mHome    = new (new (1166, 0, 1161 - LJointZ), Vector3.XAxis, Vector3.YAxis);
+   // mHome: arm's-length pose used to initialise the ViewModel.
+   //   X=1166 mm (TCP reach), Y=0 (centred), Z=1161 mm world = (1161-LJointZ) above L-joint.
+   readonly CoordSystem mHome = new (new (1166, 0, 1161 - LJointZ), Vector3.XAxis, Vector3.YAxis);
    CoordSystem          mCS;
-   readonly double[]    mMin     = new double[6], mMax = new double[6];
+   readonly double[]    mMin    = new double[6], mMax = new double[6];
    readonly RBRSolver   mSolver;
    readonly Mechanism   mMech, mTip;
    readonly Mechanism[] mJoints;
@@ -383,27 +303,20 @@ class RobotScene : Scene3 {
    readonly Mesh3VN     mBoxVN;
    readonly XfmVN       mBoxXfm;
    readonly Dictionary<Mechanism, OBBTree> mLinkOBBs = [];
-   double mBX = 700, mBY = 0, mBZ = 700;
-   double mX, mY, mZ, mRx = -90, mRy, mRz;
    Vector3 mTcpOffset = new (0, 0, -50);
 
    readonly List<(double X, double Y, double Z, double Rx, double Ry, double Rz)> mScript = [];
    int      mScriptIdx;
    readonly DispatcherTimer mPlayTimer;
-   Button?  mPlayBtn;
-
-   readonly Dictionary<string, Slider> mSliders = [];
-   bool     mSyncingUI;
 
    readonly GroupVN            mTriGroup;
    readonly List<CollisionTri> mTris = [];
-   StackPanel?                 mTriListPanel;
 
    // Group → 3D color (Box pre-seeded; other groups assigned from palette on first use)
-   readonly Dictionary<string, Color4>                           mGroupColors    = new () { ["Box"] = Color4.Blue };
-   readonly Dictionary<string, System.Windows.Media.Color>       mGroupWpfColors = new () { ["Box"] = System.Windows.Media.Colors.CornflowerBlue };
-   static readonly Color4[]                                      sGroupPalette    = [Color4.Cyan, Color4.Green, Color4.Yellow];
-   static readonly System.Windows.Media.Color[]                  sWpfGroupPalette = [System.Windows.Media.Colors.Cyan, System.Windows.Media.Colors.LimeGreen, System.Windows.Media.Colors.Yellow];
+   readonly Dictionary<string, Color4>                      mGroupColors    = new () { ["Box"] = Color4.Blue };
+   readonly Dictionary<string, System.Windows.Media.Color>  mGroupWpfColors = new () { ["Box"] = System.Windows.Media.Colors.CornflowerBlue };
+   static readonly Color4[]                                 sGroupPalette    = [Color4.Cyan, Color4.Green, Color4.Yellow];
+   static readonly System.Windows.Media.Color[]             sWpfGroupPalette = [System.Windows.Media.Colors.Cyan, System.Windows.Media.Colors.LimeGreen, System.Windows.Media.Colors.Yellow];
 }
 #endregion
 

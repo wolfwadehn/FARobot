@@ -2,7 +2,6 @@
 // ║╬╠╬╦╗ TriangleDialog.xaml.cs
 // ║╔╣╠║╣ Dialog for entering a collision triangle name, group, and vertex coordinates
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
-using System.Globalization;
 using System.IO;
 using System.Windows.Controls;
 using Microsoft.Win32;
@@ -24,7 +23,7 @@ public partial class TriangleDialog : Window {
    void OnOK (object sender, RoutedEventArgs e) {
       if (string.IsNullOrWhiteSpace (mName.Text)) { mName.Focus (); return; }
       foreach (var tb in new[] { mP1X, mP1Y, mP1Z, mP2X, mP2Y, mP2Z, mP3X, mP3Y, mP3Z }) {
-         if (!TryParse (tb.Text, out _)) { tb.Focus (); tb.SelectAll (); return; }
+         if (!Util.TryParseDouble (tb.Text, out _)) { tb.Focus (); tb.SelectAll (); return; }
       }
       DialogResult = true;
    }
@@ -74,11 +73,6 @@ public partial class TriangleDialog : Window {
    }
 
    static Point3 Pt (TextBox x, TextBox y, TextBox z) =>
-      new (Parse (x.Text), Parse (y.Text), Parse (z.Text));
-
-   static double Parse (string s) { TryParse (s, out double v); return v; }
-
-   static bool TryParse (string s, out double v) =>
-      double.TryParse (s.Replace (',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out v);
+      new (Util.ParseDouble (x.Text), Util.ParseDouble (y.Text), Util.ParseDouble (z.Text));
 }
 #endregion

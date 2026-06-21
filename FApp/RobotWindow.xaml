@@ -1,13 +1,14 @@
 <Window x:Class="FApp.RobotWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        mc:Ignorable="d"
+        xmlns:local="clr-namespace:FApp"
         Title="Robot" Width="320" SizeToContent="Height" ResizeMode="CanResizeWithGrip"
         Background="#252530" TextBlock.FontSize="13" TextBlock.Foreground="#E8E8F0"
         WindowStartupLocation="Manual">
    <Window.Resources>
+      <!-- Converts double ↔ string for TextBox two-way bindings (handles both . and , decimal) -->
+      <local:DoubleConverter x:Key="dc"/>
+
       <Style TargetType="Button">
          <Setter Property="Margin"      Value="4,2,4,2"/>
          <Setter Property="Padding"     Value="8,2,8,2"/>
@@ -22,12 +23,158 @@
       <Style TargetType="Slider" BasedOn="{StaticResource {x:Type Slider}}">
          <Setter Property="Margin" Value="4,1,4,4"/>
       </Style>
+
+      <!-- Bold label at the top of each section -->
+      <Style x:Key="SectionHeader" TargetType="TextBlock">
+         <Setter Property="FontSize"   Value="13"/>
+         <Setter Property="FontWeight" Value="Bold"/>
+         <Setter Property="Foreground" Value="#A8B8D0"/>
+         <Setter Property="Margin"     Value="8,10,0,4"/>
+      </Style>
+      <!-- Short label to the left of each slider (e.g. "X", "Rx", "BZ") -->
+      <Style x:Key="SliderLabel" TargetType="TextBlock">
+         <Setter Property="Width"             Value="22"/>
+         <Setter Property="TextAlignment"     Value="Right"/>
+         <Setter Property="VerticalAlignment" Value="Center"/>
+         <Setter Property="Foreground"        Value="Silver"/>
+      </Style>
+      <!-- Editable textbox that mirrors the slider value -->
+      <Style x:Key="SliderBox" TargetType="TextBox">
+         <Setter Property="Width"             Value="55"/>
+         <Setter Property="VerticalAlignment" Value="Center"/>
+         <Setter Property="Margin"            Value="2,1,2,4"/>
+         <Setter Property="Background"        Value="DimGray"/>
+         <Setter Property="Foreground"        Value="WhiteSmoke"/>
+         <Setter Property="BorderThickness"   Value="1"/>
+         <Setter Property="TextAlignment"     Value="Right"/>
+         <Setter Property="Padding"           Value="3,1,3,1"/>
+      </Style>
    </Window.Resources>
 
    <ScrollViewer VerticalScrollBarVisibility="Auto"
                  HorizontalScrollBarVisibility="Disabled"
                  MaxHeight="800"
                  Background="#2A2A38">
-      <StackPanel Name="mPanel" Margin="0,4,0,8"/>
+      <StackPanel Margin="0,4,0,8">
+
+         <!-- ── Forward Kinematics ──────────────────────────────────────── -->
+         <!-- One slider row per joint, generated from the Joints collection -->
+         <TextBlock Text="Forward Kinematics" Style="{StaticResource SectionHeader}"/>
+         <ItemsControl ItemsSource="{Binding Joints}">
+            <ItemsControl.ItemTemplate>
+               <DataTemplate>
+                  <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+                     <TextBlock Text="{Binding Name}" Style="{StaticResource SliderLabel}"/>
+                     <Slider Minimum="{Binding Min}" Maximum="{Binding Max}"
+                             Value="{Binding Value, Mode=TwoWay}" MinWidth="130"/>
+                     <TextBox Text="{Binding Value, Converter={StaticResource dc},
+                                             Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                              Style="{StaticResource SliderBox}"/>
+                  </StackPanel>
+               </DataTemplate>
+            </ItemsControl.ItemTemplate>
+         </ItemsControl>
+
+         <!-- ── Inverse Kinematics ──────────────────────────────────────── -->
+         <!-- Sliders set TCP world position (mm) and orientation (degrees). -->
+         <!-- Both slider and textbox bind to the same ViewModel property,   -->
+         <!-- so they always stay in sync without any code-behind.           -->
+         <TextBlock Text="Inverse Kinematics" Style="{StaticResource SectionHeader}"/>
+         <Button Content="Home Position" HorizontalAlignment="Left"
+                 Margin="6,0,6,6" Command="{Binding HomeCommand}"/>
+
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="X"  Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="-2000" Maximum="3000" Value="{Binding X, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding X,  Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="Y"  Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="-2000" Maximum="2000" Value="{Binding Y, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding Y,  Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="Z"  Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="-1000" Maximum="3200" Value="{Binding Z, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding Z,  Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="Rx" Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="-180" Maximum="180" Value="{Binding Rx, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding Rx, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="Ry" Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="-180" Maximum="180" Value="{Binding Ry, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding Ry, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="Rz" Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="-180" Maximum="180" Value="{Binding Rz, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding Rz, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+
+         <!-- ── Obstacle ────────────────────────────────────────────────── -->
+         <TextBlock Text="Obstacle" Style="{StaticResource SectionHeader}"/>
+
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="BX" Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="-1200" Maximum="1200" Value="{Binding BX, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding BX, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="BY" Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="-1200" Maximum="1200" Value="{Binding BY, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding BY, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
+            <TextBlock Text="BZ" Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="0" Maximum="1500" Value="{Binding BZ, Mode=TwoWay}" MinWidth="130"/>
+            <TextBox Text="{Binding BZ, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                     Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+
+         <!-- ── Script ──────────────────────────────────────────────────── -->
+         <TextBlock Text="Script" Style="{StaticResource SectionHeader}"/>
+         <TextBox Margin="6,0,6,4"
+                  Text="{Binding ScriptPath, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                  Background="DimGray" Foreground="WhiteSmoke"/>
+         <StackPanel Orientation="Horizontal" Margin="2,0,2,4">
+            <Button Content="Load"               Command="{Binding LoadCommand}"/>
+            <Button Content="Add"                Command="{Binding AddCommand}"/>
+            <Button Content="{Binding PlayLabel}" Command="{Binding PlayCommand}"/>
+         </StackPanel>
+
+         <!-- ── Collision Triangles ─────────────────────────────────────── -->
+         <!-- "Add Triangle…" opens a dialog (handled in code-behind).       -->
+         <!-- The list below is populated from ViewModel.Triangles.          -->
+         <TextBlock Text="Collision Triangles" Style="{StaticResource SectionHeader}"/>
+         <Button Content="Add Triangle…" HorizontalAlignment="Left"
+                 Margin="6,0,6,6" Click="OnAddTriangle"/>
+
+         <ItemsControl ItemsSource="{Binding Triangles}">
+            <ItemsControl.ItemTemplate>
+               <DataTemplate>
+                  <StackPanel Orientation="Horizontal" Margin="6,2,6,2">
+                     <TextBlock Text="{Binding Name}"  Width="110" VerticalAlignment="Center"
+                                Foreground="Silver"/>
+                     <TextBlock Text="{Binding Group}" Width="62"  VerticalAlignment="Center"
+                                Foreground="{Binding GroupBrush}"/>
+                     <Button Content="×" Padding="5,1" Margin="2"
+                             Command="{Binding RemoveCommand}"/>
+                  </StackPanel>
+               </DataTemplate>
+            </ItemsControl.ItemTemplate>
+         </ItemsControl>
+
+      </StackPanel>
    </ScrollViewer>
 </Window>

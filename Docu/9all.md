@@ -21,8 +21,11 @@
       - `CollisionTri`
   - `RobotWindow.xaml`
     - Floating robot control palette layout
+  - `RobotViewModel.cs`
+    - Bindable robot state (INotifyPropertyChanged)
+    - JointSliderModel, CollisionTriVM, DelegateCommand, DoubleConverter
   - `RobotWindow.xaml.cs`
-    - Exposes `Panel` for dynamic robot UI creation
+    - Wires DataContext to RobotViewModel; handles Add Triangle dialog
   - `TriangleDialog.xaml`
     - Dialog for adding/importing/exporting collision triangles
   - `TriangleDialog.xaml.cs`
@@ -93,10 +96,11 @@ The robot mode is not isolated as a separate app. It is integrated into the main
   - toolbar / command system
 
 - `RobotWindow`
-  - `mPanel`
-    - dynamically populated by `RobotScene.CreateUI(...)`
+  - `mScene : RobotScene`  (for Add Triangle dialog only)
+  - `DataContext → RobotViewModel`
 
 - `RobotScene`
+  - `ViewModel : RobotViewModel`
   - `mMech : Mechanism`
   - `mTip : Mechanism`
   - `mJoints : Mechanism[]`
@@ -109,7 +113,13 @@ The robot mode is not isolated as a separate app. It is integrated into the main
   - `mTriGroup : GroupVN`
   - `mTris : List<CollisionTri>`
   - `mPlayTimer : DispatcherTimer`
-  - `mSliders : Dictionary<string, Slider>`
+
+- `RobotViewModel`
+  - `X, Y, Z, Rx, Ry, Rz : double`  (IK pose)
+  - `BX, BY, BZ : double`            (obstacle position)
+  - `ScriptPath, PlayLabel : string`
+  - `Joints : JointSliderModel[]`
+  - `Triangles : ObservableCollection<CollisionTriVM>`
 
 ### Scene graph tree
 
@@ -337,7 +347,8 @@ This is a direct pose-from-face interaction mode.
 
 ## Robot control UI structure
 
-The robot palette is built dynamically inside `RobotScene.CreateUI(...)`.
+The robot palette is declared in `RobotWindow.xaml` and driven by `RobotViewModel` via WPF data binding.
+`RobotWindow.SetScene(scene)` sets `DataContext = scene.ViewModel` to activate the bindings.
 
 ### Sections created
 
@@ -408,7 +419,7 @@ Contains:
 5. `Lux.UIScene = mRobotScene`
 6. `mRobotWin = new RobotWindow()`
 7. `mRobotWin.Show()`
-8. `mRobotScene.CreateUI(mRobotWin.Panel)`
+8. `mRobotWin.SetScene(mRobotScene)`  — sets DataContext, activates all XAML bindings
 
 ### Startup effect
 
@@ -464,9 +475,9 @@ The robot pose changes from task space.
 3. `SnapToFace(hitPoint)` runs
 4. Closest box face direction is inferred
 5. Tool orientation is assigned from that face
-6. `mX/mY/mZ` are set from hit point minus home origin
-7. `ComputeIK()` runs
-8. `SyncIKSliders()` updates `X/Y/Z/Rx/Ry/Rz` sliders
+6. `ViewModel.SetIKPose(hit.X, hit.Y, hit.Z, newRx, newRy, newRz)` is called
+   — fires `IKChanged` once → `ComputeIK()` runs
+   — fires `PropertyChanged` for all 6 IK properties → all sliders update automatically
 
 ### Result
 
@@ -691,12 +702,11 @@ Custom triangles are grouped by name string.
 
 ### Important behavior detail
 
-`TriangleDialog` defaults the triangle group to `Box`.
+`TriangleDialog` defaults the triangle group to `"Group1"` when the field is left empty.
 
-That means a newly added triangle, unless renamed to another group, shares the same collision group as the physical box obstacle. As a result:
-
-- a hit on that triangle can set `groupHit["Box"] = true`
-- the box visual can turn red even if the box itself was not the only hit source
+The box obstacle collision state is tracked with a dedicated `bool boxHit` variable inside
+`CheckCollisions()`, separate from any triangle group dictionary. A triangle group named `"Box"`
+does not interfere with the box's color, and vice versa.
 - all triangles in group `Box` will behave as one visual collision set
 
 This appears intentional or at least accepted by the current implementation, but it is important because it couples the box obstacle and default triangle group visually.
@@ -752,12 +762,13 @@ The box and custom triangles manage color directly inside `RobotScene.CheckColli
 - `mTris`
   - custom collision triangles
 
-### UI fields
+### ViewModel fields (bindable state)
 
-- `mSliders`
-  - maps label to slider instance
-- `mSyncingUI`
-  - blocks recursive event feedback when code updates sliders
+- `ViewModel.X/Y/Z/Rx/Ry/Rz` — IK pose; two-way bound to sliders and textboxes
+- `ViewModel.BX/BY/BZ` — obstacle position
+- `ViewModel.Joints` — `JointSliderModel[]`, one per robot joint; bound to FK `ItemsControl`
+- `ViewModel.Triangles` — `ObservableCollection<CollisionTriVM>`; bound to triangle list
+- `ViewModel.PlayLabel` — `"Play"` or `"Stop"`; bound to Play button text
 
 ---
 
@@ -776,21 +787,17 @@ When IK computes new joint values:
 
 So the FK section may become stale after IK interaction or script playback.
 
-### 3. IK sliders are only synchronized in one path
+### 3. IK sliders stay in sync via ViewModel
 
-`SyncIKSliders()` is called after `SnapToFace()`.
+All pose-setting paths (`SnapToFace`, `SnapToTriNode`, `TickScript`) call
+`ViewModel.SetIKPose(x, y, z, rx, ry, rz)`. This fires `PropertyChanged` for all six
+IK properties, which WPF propagates to the bound sliders and textboxes automatically.
+No `SyncIKSliders()` method is needed.
 
-It is not called from:
+### 4. Script playback is fully reflected in the UI
 
-- direct IK slider edits
-- script playback
-- any other pose-setting path
-
-That means UI consistency is partial.
-
-### 4. Script playback updates state but not visible controls
-
-`TickScript()` changes the internal target and solves IK, but does not update the slider widgets. The scene moves; the panel may not.
+`TickScript()` calls `ViewModel.SetIKPose()`, so the IK sliders and textboxes track each
+waypoint as it plays. Previously this was a known gap; it is now resolved.
 
 ### 5. First-valid-solution strategy is simplistic
 

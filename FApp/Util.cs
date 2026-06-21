@@ -2,6 +2,7 @@
 // ║╬╠╬╦╗ Util.cs
 // ║╔╣╠║╣ Some utility functions and properties
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
+using System.Globalization;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using FCursor = System.Windows.Forms.Cursor;
@@ -48,5 +49,12 @@ static class Util {
    /// <summary>Convert pixels to 2D world coordinates</summary>
    public static Point2 ToWorld (Vec2S pix)
       => (Point2)(Lux.UIScene?.PixelToWorld (pix) ?? Point3.Zero);
+
+   /// <summary>Parse a double that may use either '.' or ',' as the decimal separator.</summary>
+   public static bool TryParseDouble (string s, out double v) =>
+      double.TryParse (s.Replace (',', '.'), NumberStyles.Float, CultureInfo.InvariantCulture, out v);
+
+   /// <summary>Returns the parsed value, or 0 if the string is not a valid number.</summary>
+   public static double ParseDouble (string s) { TryParseDouble (s, out double v); return v; }
 }
 #endregion
