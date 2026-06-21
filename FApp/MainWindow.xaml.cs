@@ -92,6 +92,7 @@ public partial class MainWindow : Window {
          t.DoClick (ECmd.Pick);
       }
       UndoStack.Current = new ();
+      if (mTcpOffsetBtn != null) mTcpOffsetBtn.Visibility = Visibility.Collapsed;
    }
    Dwg2 mDwg = new ();
 
@@ -244,9 +245,20 @@ public partial class MainWindow : Window {
       mRobotWin.Closed += (_, _) => SetDwg (mDwg);
       mRobotWin.Show ();
       mRobotScene.CreateUI (mRobotWin.Panel);
+      if (mTcpOffsetBtn == null && mToolbarHost.Child is Toolbar tb)
+         mTcpOffsetBtn = tb.AddButton ("TCP Offset", ShowTcpOffsetDlg);
+      if (mTcpOffsetBtn != null) mTcpOffsetBtn.Visibility = Visibility.Visible;
    }
+
+   void ShowTcpOffsetDlg () {
+      if (mRobotScene == null) return;
+      var dlg = new TcpOffsetDialog (mRobotScene.TcpOffset) { Owner = this };
+      if (dlg.ShowDialog () is true) mRobotScene.TcpOffset = dlg.Offset;
+   }
+
    RobotScene?  mRobotScene;
    RobotWindow? mRobotWin;
+   System.Windows.Controls.Border? mTcpOffsetBtn;
 
    [CmdSink ("cmd:TcpLegend")]
    void TcpLegend () {

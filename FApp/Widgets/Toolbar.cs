@@ -134,6 +134,26 @@ class Toolbar : StackPanel {
       }
    }
 
+   /// <summary>Appends a robot-specific button below the main toolbar items</summary>
+   public Border AddButton (string tooltip, Action onClick) {
+      var icon = new TextBlock {
+         Text                = "⚙",
+         FontSize            = 12,
+         Width = 16, Height  = 16,
+         TextAlignment       = System.Windows.TextAlignment.Center,
+         VerticalAlignment   = VerticalAlignment.Center,
+         HorizontalAlignment = HorizontalAlignment.Center
+      };
+      var border = new Border { Child = icon, CornerRadius = new (2), Margin = new (3), ToolTip = tooltip };
+      border.MouseDown  += (s, e) => { if (e.ChangedButton == MouseButton.Left) onClick (); };
+      border.MouseEnter += (s, e) => border.Background = mBrHover;
+      border.MouseLeave += (s, e) => border.Background = null;
+      var wrap = new WrapPanel ();
+      wrap.Children.Add (border);
+      Children.Add (wrap);
+      return border;
+   }
+
    /// <summary>Resets the existing tool selection</summary>
    public void Reset () {
       DwgHub.Widget = null;

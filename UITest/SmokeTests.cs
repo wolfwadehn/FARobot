@@ -4,6 +4,7 @@
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
 namespace FApp.UITesting;
 
+#if FLAUI
 #region class SmokeTests ---------------------------------------------------------------------------
 [UIFixture (1, "Smoke Tests")]
 class SmokeTests {
@@ -23,3 +24,4 @@ class SmokeTests {
    }
 }
 #endregion
+#endif
