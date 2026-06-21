@@ -6,9 +6,11 @@
 		<Nullable>enable</Nullable>
 		<OutDir>..\Bin</OutDir>
 		<Optimize>false</Optimize>
+		<FlaUI Condition="'$(FlaUI)'==''">false</FlaUI>
+		<DefineConstants Condition="'$(FlaUI)'=='true'">FLAUI</DefineConstants>
 	</PropertyGroup>
 
-	<ItemGroup>
+	<ItemGroup Condition="'$(FlaUI)'=='true'">
 		<ProjectReference Include="..\..\FlaUI\src\FlaUI.Core\FlaUI.Core.csproj" />
 		<ProjectReference Include="..\..\FlaUI\src\FlaUI.UIA3\FlaUI.UIA3.csproj" />
 	</ItemGroup>

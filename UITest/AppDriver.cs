@@ -2,7 +2,9 @@
 // ║╬╠╬╦╗ AppDriver.cs
 // ║╔╣╠║╣ Helpers for launching and interacting with the FApp process
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
+#if FLAUI
 using FlaUI.Core.Conditions;
+#endif
 namespace FApp.UITesting;
 
 #region class UIFixtureAttribute -------------------------------------------------------------------
@@ -23,6 +25,7 @@ sealed class UITestAttribute (int id, string name) : Attribute {
 }
 #endregion
 
+#if FLAUI
 #region class AppDriver ----------------------------------------------------------------------------
 /// <summary>Launches FApp and provides access to its main window for UI automation</summary>
 sealed class AppDriver : IDisposable {
@@ -46,3 +49,4 @@ sealed class AppDriver : IDisposable {
    readonly Application mApp;
 }
 #endregion
+#endif

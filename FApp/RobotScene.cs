@@ -36,6 +36,7 @@ class RobotScene : Scene3 {
 
       mGripper   = new XfmVN (Matrix3.Identity, new GroupVN ([]));
       mTriGroup  = new GroupVN ([]);
+      (mX, mY, mZ) = (mHome.Org.X, mHome.Org.Y, mHome.Org.Z + LJointZ);
       mCS        = mHome; ComputeIK ();
 
       mPlayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds (500) };
@@ -53,10 +54,11 @@ class RobotScene : Scene3 {
    }
 
    // Properties ---------------------------------------------------------------
-   public Mechanism Tip  => mTip;
+   public Mechanism Tip       => mTip;
+   public Vector3   TcpOffset { get => mTcpOffset; set { mTcpOffset = value; ComputeIK (); } }
    public (double X, double Y, double Z, double Rx, double Ry, double Rz,
-           Mechanism[] Joints, Point3 Org) InfoData
-      => (mX, mY, mZ, mRx, mRy, mRz, mJoints, mHome.Org);
+           Mechanism[] Joints) InfoData
+      => (mX, mY, mZ, mRx, mRy, mRz, mJoints);
 
    // Methods ------------------------------------------------------------------
    public void CreateUI (UIElementCollection ui) {
@@ -69,9 +71,9 @@ class RobotScene : Scene3 {
       }
 
       AddSection ("Inverse Kinematics");
-      AddSlider ("X",  -3000, 1000, mX,  v => { mX  = v; ComputeIK (); });
+      AddSlider ("X",  -2000, 3000, mX,  v => { mX  = v; ComputeIK (); });
       AddSlider ("Y",  -2000, 2000, mY,  v => { mY  = v; ComputeIK (); });
-      AddSlider ("Z",  -2000, 2000, mZ,  v => { mZ  = v; ComputeIK (); });
+      AddSlider ("Z",  -1000, 3200, mZ,  v => { mZ  = v; ComputeIK (); });
       AddSlider ("Rx", -180,  180,  mRx, v => { mRx = v; ComputeIK (); });
       AddSlider ("Ry", -180,  180,  mRy, v => { mRy = v; ComputeIK (); });
       AddSlider ("Rz", -180,  180,  mRz, v => { mRz = v; ComputeIK (); });
@@ -126,14 +128,37 @@ class RobotScene : Scene3 {
             VerticalAlignment = VerticalAlignment.Center,
             Foreground        = System.Windows.Media.Brushes.Silver
          };
+         var tb = new TextBox {
+            Width             = 55, Text = value.ToString ("F1"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin            = new Thickness (2, 1, 2, 4),
+            Background        = System.Windows.Media.Brushes.DimGray,
+            Foreground        = System.Windows.Media.Brushes.WhiteSmoke,
+            BorderThickness   = new Thickness (1),
+            TextAlignment     = System.Windows.TextAlignment.Right,
+            Padding           = new Thickness (3, 1, 3, 1)
+         };
          var sl = new Slider {
             Minimum = min, Maximum = max, Value = value,
-            MinWidth = 140, IsSnapToTickEnabled = false,
+            MinWidth = 130, IsSnapToTickEnabled = false,
             Margin   = new Thickness (4, 1, 4, 4)
          };
-         sl.ValueChanged += (_, e) => { if (!mSyncingUI) setter (e.NewValue); };
+         sl.ValueChanged += (_, e) => {
+            if (!mSyncingUI) setter (e.NewValue);
+            tb.Text = e.NewValue.ToString ("F1");
+         };
+         void Commit () {
+            if (double.TryParse (tb.Text, System.Globalization.NumberStyles.Float,
+                                 System.Globalization.CultureInfo.InvariantCulture, out double v))
+               sl.Value = Math.Clamp (v, min, max);
+            else
+               tb.Text = sl.Value.ToString ("F1");
+         }
+         tb.LostFocus += (_, _) => Commit ();
+         tb.KeyDown   += (_, e) => { if (e.Key == System.Windows.Input.Key.Enter) Commit (); };
          sp.Children.Add (lbl);
          sp.Children.Add (sl);
+         sp.Children.Add (tb);
          ui.Add (sp);
          mSliders[label] = sl;
       }
@@ -143,7 +168,27 @@ class RobotScene : Scene3 {
    public override void Detached () => mPlayTimer.IsEnabled = false;
 
    public override void Picked (object obj) {
-      if (obj == mBoxMesh) SnapToFace (Lux.PickPos);
+      if (obj == mBoxMesh) { SnapToFace (Lux.PickPos); return; }
+      foreach (var tri in mTris)
+         if (obj == tri.Mesh) { SnapToTriNode (tri.P1, tri.Normal); return; }
+   }
+
+   void SnapToTriNode (Point3 p1, Vector3 normal) {
+      (mRx, mRy, mRz) = NormalToEuler (normal);
+      mX = p1.X;
+      mY = p1.Y;
+      mZ = p1.Z;
+      ComputeIK ();
+      SyncIKSliders ();
+   }
+
+   // Maps a unit normal to (Rx, Ry, Rz=0) so that VecZ after cs*=Rot(X,Rx)*Rot(Y,Ry) equals normal.
+   // VecZ formula: (sin(Ry), -sin(Rx)*cos(Ry), cos(Rx)*cos(Ry))
+   static (double Rx, double Ry, double Rz) NormalToEuler (Vector3 n) {
+      double ry    = Math.Asin (Math.Clamp (n.X, -1, 1));
+      double cosRy = Math.Cos (ry);
+      double rx    = Math.Abs (cosRy) > 1e-6 ? Math.Atan2 (-n.Y, n.Z) : 0;
+      return (rx * (180 / Math.PI), ry * (180 / Math.PI), 0);
    }
 
    void SnapToFace (Point3 hit) {
@@ -157,9 +202,9 @@ class RobotScene : Scene3 {
          (mRx, mRy, mRz) = ry > 0 ? (-90.0, 0.0, 0.0) : (90.0, 0.0, 0.0);
       else
          (mRx, mRy, mRz) = rz > 0 ? (0.0, 0.0, 0.0) : (180.0, 0.0, 0.0);
-      mX = hit.X - mHome.Org.X;
-      mY = hit.Y - mHome.Org.Y;
-      mZ = hit.Z - mHome.Org.Z;
+      mX = hit.X;
+      mY = hit.Y;
+      mZ = hit.Z;
       ComputeIK ();
       SyncIKSliders ();
    }
@@ -169,8 +214,9 @@ class RobotScene : Scene3 {
       cs *= Matrix3.Rotation (EAxis.X, mRx.D2R ());
       cs *= Matrix3.Rotation (EAxis.Y, mRy.D2R ());
       cs *= Matrix3.Rotation (EAxis.Z, mRz.D2R ());
-      var tcp = (Vector3)(mHome.Org + new Vector3 (mX, mY, mZ));
-      mCS = cs * Matrix3.Translation (tcp + cs.VecZ * 50);
+      var tcp   = new Vector3 (mX, mY, mZ - LJointZ);
+      var wrist = tcp - cs.VecX * mTcpOffset.X - cs.VecY * mTcpOffset.Y - cs.VecZ * mTcpOffset.Z;
+      mCS = cs * Matrix3.Translation (wrist);
       mSolver.ComputeStances (mCS.Org, mCS.VecZ, mCS.VecX);
       for (int j = 0; j < 8; j++) {
          var a = mSolver.Solutions[j];
@@ -206,15 +252,14 @@ class RobotScene : Scene3 {
       var boxOBBW = mBoxOBB.With (BoxWorldXfm);
       using var bc = OBBCollider.Borrow ();
 
-      // Per-group hit flags — Box pre-seeded, all triangle groups initialised to false
-      Dictionary<string, bool> groupHit = new () { ["Box"] = false };
+      bool boxHit = false;
+      Dictionary<string, bool> groupHit = [];
       foreach (var tri in mTris) groupHit.TryAdd (tri.Group, false);
 
-      // Single pass: resolve per-link and per-group collision together
       foreach (var (m, linkOBB) in mLinkOBBs) {
          var wLink    = linkOBB.With (m.Xfm);
          bool linkHit = bc.Check (wLink, boxOBBW);
-         if (linkHit) groupHit["Box"] = true;
+         if (linkHit) boxHit = true;
          foreach (var tri in mTris) {
             if (bc.Check (wLink, tri.OBB.With (Matrix3.Identity))) {
                linkHit = true;
@@ -224,8 +269,7 @@ class RobotScene : Scene3 {
          m.IsColliding = linkHit;
       }
 
-      // Apply group-level colours: all triangles in a hit group turn red together
-      mBoxVN.Color = groupHit["Box"] ? Color4.Red : Color4.Blue;
+      mBoxVN.Color = boxHit ? Color4.Red : Color4.Blue;
       foreach (var tri in mTris)
          tri.IsColliding = groupHit[tri.Group];
    }
@@ -325,7 +369,9 @@ class RobotScene : Scene3 {
    }
 
    // Fields -------------------------------------------------------------------
-   readonly CoordSystem mHome    = new (new (1166, 0, 1161 - 565), Vector3.XAxis, Vector3.YAxis);
+   // World Z of the L joint = Base.Sockets.Z(266.5) + S.Sockets.Z(298.5); solver expects Z relative to this plane
+   const double LJointZ = 565;
+   readonly CoordSystem mHome    = new (new (1166, 0, 1161 - LJointZ), Vector3.XAxis, Vector3.YAxis);
    CoordSystem          mCS;
    readonly double[]    mMin     = new double[6], mMax = new double[6];
    readonly RBRSolver   mSolver;
@@ -339,6 +385,7 @@ class RobotScene : Scene3 {
    readonly Dictionary<Mechanism, OBBTree> mLinkOBBs = [];
    double mBX = 700, mBY = 0, mBZ = 700;
    double mX, mY, mZ, mRx = -90, mRy, mRz;
+   Vector3 mTcpOffset = new (0, 0, -50);
 
    readonly List<(double X, double Y, double Z, double Rx, double Ry, double Rz)> mScript = [];
    int      mScriptIdx;
@@ -368,8 +415,9 @@ class TcpVN : VNode {
    public override void SetAttributes () { Lux.ZLevel = 70; }
 
    public override void Draw () {
-      var fcs = CoordSystem.World * Scene.Tip.Xfm;
-      var tcp = fcs.Org - fcs.VecZ * 50;
+      var fcs    = CoordSystem.World * Scene.Tip.Xfm;
+      var off    = Scene.TcpOffset;
+      var tcp    = fcs.Org + fcs.VecX * off.X + fcs.VecY * off.Y + fcs.VecZ * off.Z;
       DrawArrow (tcp, fcs.VecX, Color4.Red);
       DrawArrow (tcp, fcs.VecY, Color4.Green);
       DrawArrow (tcp, fcs.VecZ, Color4.Blue);
@@ -409,10 +457,10 @@ class InfoVN : VNode {
 
    public override void Draw () {
       if (Lux.UIScene is not { } sc) return;
-      var (x, y, z, rx, ry, rz, joints, org) = Scene.InfoData;
+      var (x, y, z, rx, ry, rz, joints) = Scene.InfoData;
       int lh = mFace.LineHeight, py = (int)sc.Rect.Height - lh * 4 - 8, px = 10;
       void Line (string s) { Lux.Text (s, new Vec2S (px, py)); py += lh; }
-      Line ($"X={org.X + x,8:F1}  Y={org.Y + y,8:F1}  Z={org.Z + z,8:F1}  mm");
+      Line ($"X={x,8:F1}  Y={y,8:F1}  Z={z,8:F1}  mm");
       Line ($"Rx={rx,7:F1}°  Ry={ry,7:F1}°  Rz={rz,7:F1}°");
       Line ($"S={joints[0].JValue,7:F1}°  L={joints[1].JValue,7:F1}°  U={joints[2].JValue,7:F1}°");
       Line ($"R={joints[3].JValue,7:F1}°  B={joints[4].JValue,7:F1}°  T={joints[5].JValue,7:F1}°");
@@ -427,14 +475,21 @@ class CollisionTri {
    // Constructor --------------------------------------------------------------
    public CollisionTri (string name, string group, Color4 color, Point3 p1, Point3 p2, Point3 p3) {
       Name = name; Group = group; mIdleColor = color;
-      var mesh = new Mesh3Builder ([p1, p2, p3]).Build ();
-      OBB = OBBTree.From (mesh);
-      VN  = new Mesh3VN (mesh) { Mode = EShadeMode.Glass, Color = color };
+      P1     = p1;
+      var v1 = new Vector3 (p2.X - p1.X, p2.Y - p1.Y, p2.Z - p1.Z);
+      var v2 = new Vector3 (p3.X - p1.X, p3.Y - p1.Y, p3.Z - p1.Z);
+      Normal = (v1 * v2).Normalized ();
+      Mesh   = new Mesh3Builder ([p1, p2, p3]).Build ();
+      OBB    = OBBTree.From (Mesh);
+      VN     = new Mesh3VN (Mesh) { Mode = EShadeMode.Glass, Color = color };
    }
 
    // Properties ---------------------------------------------------------------
    public string  Name;
    public string  Group;
+   public Point3  P1;
+   public Vector3 Normal;
+   public Mesh3   Mesh;
    public OBBTree OBB;
    public Mesh3VN VN;
    public bool IsColliding { set => VN.Color = value ? Color4.Red : mIdleColor; }

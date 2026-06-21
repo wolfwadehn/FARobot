@@ -15,7 +15,7 @@ public partial class TriangleDialog : Window {
 
    // Properties ---------------------------------------------------------------
    public string TriName => mName.Text.Trim ();
-   public string Group   => mGroup.Text.Trim () is { Length: > 0 } g ? g : "Box";
+   public string Group   => mGroup.Text.Trim () is { Length: > 0 } g ? g : "Group1";
    public Point3 P1 => Pt (mP1X, mP1Y, mP1Z);
    public Point3 P2 => Pt (mP2X, mP2Y, mP2Z);
    public Point3 P3 => Pt (mP3X, mP3Y, mP3Z);
