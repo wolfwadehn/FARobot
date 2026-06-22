@@ -3,49 +3,24 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:FApp"
         mc:Ignorable="d" Background="#9898A0"
         Title="FApp" d:Height="450" d:Width="800" WindowState="Maximized"
-        TextBlock.FontSize="13" AllowDrop="True">
+        TextBlock.FontSize="13">
    <DockPanel>
       <Menu DockPanel.Dock="Top" Margin="0,0,0,4" FontSize="13" Background="#C8C8D0" IsTabStop="False">
          <MenuItem Header="_File" IsTabStop="False">
-            <MenuItem Header="_New" Tag="cmd:New" InputGestureText="Ctrl+N" IsTabStop="False"/>
-            <MenuItem Header="_Open..." Tag="cmd:Open" InputGestureText="Ctrl+O" IsTabStop="False"/>
-            <MenuItem Header="_Save" Tag="cmd:Save" InputGestureText="Ctrl+S" IsTabStop="False"/>
-            <MenuItem Header="Save _As..." Tag="cmd:SaveAs" InputGestureText="Ctrl+Alt+S" IsTabStop="False"/>
-            <MenuItem Header="Save Selecte_d As..." Tag="cmd:SaveSelectedAs" IsTabStop="False"/>
-            <Separator/>
-            <MenuItem Header="E_xit" Tag="cmd:Exit" InputGestureText="Alt+F4" IsTabStop="False"/>
-         </MenuItem>
-         <MenuItem Header="_Edit" IsTabStop="False" SubmenuOpened="OnEditMenuOpened">
-            <MenuItem Header="_Undo" Name="mUndo" Tag="cmd:Undo" InputGestureText="Ctrl+Z" IsTabStop="False"/>
-            <MenuItem Header="_Redo" Name="mRedo" Tag="cmd:Redo" InputGestureText="Ctrl+Y" IsTabStop="False"/>
-            <Separator/>
-            <MenuItem Header="Cu_t" Tag="cmd:Cut" InputGestureText="Del" IsTabStop="False"/>
-				<MenuItem Header="_Copy" Tag="cmd:Copy" InputGestureText="Ctrl+C" IsTabStop="False"/>
-				<MenuItem Header="_Paste" Tag="cmd:Paste" InputGestureText="Ctrl+V" IsTabStop="False"/>
-            <Separator/>
-            <MenuItem Header="_Select All" Tag="cmd:SelectAll" InputGestureText="Ctrl+A" IsTabStop="False"/>
-            <MenuItem Header="_Deselect All" Tag="cmd:DeselectAll" InputGestureText="Ctrl+D" IsTabStop="False"/>
-            <MenuItem Header="_Invert Selection" Tag="cmd:InvertSelection" InputGestureText="Ctrl+I" IsTabStop="False"/>
+            <MenuItem Header="E_xit" Click="Exit" IsTabStop="False"/>
          </MenuItem>
          <MenuItem Header="_View" IsTabStop="False">
-            <MenuItem Header="Zoom _Extents" Tag="cmd:ZoomExtents" InputGestureText="Ctrl+E"/>
+            <MenuItem Header="Zoom _Extents" Click="ZoomExtents" IsTabStop="False"/>
             <Separator/>
-            <MenuItem Header="_Robot..." Tag="cmd:Robot" IsTabStop="False"/>
-            <MenuItem Header="Robot _Home" Tag="cmd:RobotHome" IsTabStop="False"/>
-            <MenuItem Header="TCP _Legend..." Tag="cmd:TcpLegend" IsTabStop="False"/>
+            <MenuItem Header="_Robot..." Click="OpenRobot" IsTabStop="False"/>
+            <MenuItem Header="Robot _Home" Click="RobotHome" IsTabStop="False"/>
+            <MenuItem Header="TCP _Legend..." Click="TcpLegend" IsTabStop="False"/>
          </MenuItem>
-         <MenuItem Header="About!" Tag="cmd:About" IsTabStop="False"/>
+         <MenuItem Header="About!" Click="About" IsTabStop="False"/>
       </Menu>
       <Border DockPanel.Dock="Left" Name="mToolbarHost" Width="27" Padding="2,4,0,0" Margin="0,0,4,0" Background="#C8C8D0"/>
-      <DockPanel DockPanel.Dock="Bottom" MinHeight="52" Margin="0,4,0,0" Background="#C8C8D0">
-         <Border DockPanel.Dock="Bottom" Background="#A8A8B0">
-            <TextBlock Background="#C8C8D0" Padding="6,1,4,1" Margin="0,1,0,0" Name="mStatus">OK</TextBlock>
-         </Border>
-         <StackPanel Name="mStack" Orientation="Horizontal" Margin="6,4,2,4" />
-      </DockPanel>
       <Border Name="mContent" Background="#C8C8D0" />
    </DockPanel>
 </Window>

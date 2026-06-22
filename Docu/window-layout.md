@@ -1,0 +1,149 @@
+# Window Layout
+
+FApp has one main window and one floating sidebar window (the robot controls).
+There is no status bar — it was removed when the 2D drawing editor was eliminated.
+
+---
+
+## Main window
+
+Defined in `FApp/MainWindow.xaml`.  
+The root element is a `DockPanel` that stacks three bands:
+
+```
+┌─────────────────────────────────────────────────┐
+│  Menu bar  (DockPanel.Dock="Top")               │
+├────┬────────────────────────────────────────────┤
+│ TB │                                            │
+│    │   3-D viewport  (mContent)                 │
+│    │                                            │
+└────┴────────────────────────────────────────────┘
+  TB = Toolbar host (mToolbarHost, 27 px wide, Dock="Left")
+```
+
+### Menu bar
+
+Defined in XAML; each `MenuItem` wires directly to a method in `MainWindow.xaml.cs`
+via `Click="MethodName"` — no indirection layer.
+
+| Menu | Item | Handler | Effect |
+|------|------|---------|--------|
+| File | Exit | `Exit()` | `Close()` — WPF closes the window |
+| View | Zoom Extents | `ZoomExtents()` | `Lux.UIScene?.ZoomExtents()` |
+| View | Robot… | `OpenRobot()` | Open / bring-to-front the robot sidebar |
+| View | Robot Home | `RobotHome()` | `mRobotScene?.GoHome()` |
+| View | TCP Legend… | `TcpLegend()` | Show RGB axis legend popup |
+| — | About! | `About()` | Show version / expiry info |
+
+`Alt+F4` closes the window natively (Windows default); no keyboard shortcut is
+registered for anything else.
+
+### Toolbar
+
+`mToolbarHost` is a 27 px-wide `Border` on the left edge.
+Its `Child` is a `Toolbar` instance (`FApp/Widgets/Toolbar.cs`), which is a plain
+`StackPanel`.
+
+Buttons are added programmatically via `Toolbar.AddButton(icon, tooltip, action)`.
+Each call wraps a `TextBlock` icon in a `Border`, appends it to a `WrapPanel`, and
+adds that panel to the stack.
+
+| When added | Icon | Tooltip | Action |
+|-----------|------|---------|--------|
+| `OnLuxReady()` — always present | `⊕` | Show Robot Controls | `OpenRobot()` |
+| First call to `OpenRobot()` | `⚙` | TCP Offset | `ShowTcpOffsetDlg()` |
+
+Hover highlight is `#E4E4EC`; no selected-state highlight (the toolbar carries
+no drawing-command mode concept any more).
+
+### 3-D viewport
+
+`mContent` is a `Border` that holds the Nori `WPFHost` GL control.
+The host is initialised in the constructor:
+
+```csharp
+mContent.Child = WPFHost.Init(this, OnLuxReady);
+```
+
+`OnLuxReady` fires once the OpenGL surface is ready.
+The active scene (`Lux.UIScene`) is always `mRobotScene` after startup.
+
+---
+
+## Robot sidebar (`RobotWindow`)
+
+Defined in `FApp/RobotWindow.xaml`.  
+It is a separate floating `Window` (not docked), positioned at the right edge of
+the work area:
+
+```csharp
+mRobotWin.Left = wa.Right - mRobotWin.Width - 10;
+mRobotWin.Top  = wa.Top;
+```
+
+**Visual identity:** dark theme (`#252530` background, `#E8E8F0` text).  
+**Width:** fixed 320 px; height adjusts to content (max 800 px with scroll).
+
+The `DataContext` is `RobotScene.ViewModel` (a `RobotViewModel` instance), so all
+sliders and textboxes update automatically through WPF data binding.
+
+### Layout (top to bottom inside a `ScrollViewer`)
+
+```
+Forward Kinematics
+  [S] ──────●────  -180.0
+  [L] ────●──────   -45.2
+  [U] ──────────●  +120.0
+  [R] ──────────●   ...
+  [B] ...
+  [T] ...
+
+Inverse Kinematics
+  [Home Position]
+  X  ──────●────   750.0
+  Y  ──────●────     0.0
+  Z  ──────●────  1161.0
+  Rx ──────●────   -90.0
+  Ry ──────●────     0.0
+  Rz ──────●────     0.0
+
+Obstacle
+  BX ──────●────   700.0
+  BY ──────●────     0.0
+  BZ ──────●────   700.0
+
+Script
+  [path/to/robot_script.txt          ]
+  [Load]  [Add]  [Play]
+
+Collision Triangles
+  [Add Triangle…]
+  WorkpieceTop  Group1  [×]
+  TableEdge     Group1  [×]
+```
+
+Each slider row is a `StackPanel` containing:
+- A label `TextBlock` (22 px wide, right-aligned)
+- A `Slider` (min width 130 px, two-way binding)
+- A `TextBox` (55 px, two-way binding through `DoubleConverter`)
+
+Both the slider and the textbox bind to the **same ViewModel property**, so
+editing either one updates the other automatically.
+
+---
+
+## Dialogs
+
+### TCP Offset dialog (`TcpOffsetDialog.xaml`)
+
+Opens from the ⚙ toolbar button.  
+Three text boxes (X, Y, Z) for the wrist-to-TCP vector in millimetres.  
+OK validates all three fields; Cancel discards.
+
+### Add Triangle dialog (`TriangleDialog.xaml`)
+
+Opens from the "Add Triangle…" button in the robot sidebar.  
+Fields: Name, Group, P1(X/Y/Z), P2(X/Y/Z), P3(X/Y/Z).  
+Import/Export buttons read/write a CSV file.
+
+---
