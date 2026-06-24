@@ -23,7 +23,7 @@
 	</ItemGroup>
 
 	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
-	  <Exec Command="copy N:\bin\freetype.dll F:\bin" />
+	  <Exec Command="copy N:\bin\freetype.dll F:\bin" ContinueOnError="WarnAndContinue" />
 	</Target>
 
 </Project>

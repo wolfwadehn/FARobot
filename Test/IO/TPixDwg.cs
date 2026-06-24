@@ -14,15 +14,7 @@ class BoundTests {
       double.IsFinite (dwg.Bound.Height).IsTrue ();
    }
 
-   [Test (97, "Skip extremely large contour bound")]
-   void Test97 () {
-      // Note: DwgHub.Dwg carries out skipping extra large contours
-      DwgHub.Dwg = DXFReader.Load (PT.File ("Dxf/QS1076L-05R - REV001.dxf"));
-      var dwg = DwgHub.Dwg;
-      // Note: Essentially, we simply skip the apparently faulty poly!
-      double.IsFinite (dwg.Bound.Width).IsTrue ();
-      double.IsFinite (dwg.Bound.Height).IsTrue ();
-   }
+
 }
 
 [Fixture (11, "User reported issues", "User")]

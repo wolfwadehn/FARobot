@@ -19,10 +19,23 @@ public partial class MainWindow : Window {
    }
 
    void OnLuxReady () {
+      var noriWad = Lib.GetLocalFile ("Nori.wad");
+      if (File.Exists (noriWad)) Lib.Register (new ZipStmLocator ("nori:", noriWad));
       new SceneManipulator ();
       if (mToolbarHost.Child is Toolbar tb)
          tb.AddButton ("⊕", "Show Robot Controls", OpenRobot);
       OpenRobot ();
+      ApplyCommandLineArgs ();
+   }
+
+   void ApplyCommandLineArgs () {
+      var args = Environment.GetCommandLineArgs ();
+      for (int i = 1; i < args.Length - 1; i++) {
+         var flag = args[i].ToLowerInvariant ();
+         var path = args[i + 1];
+         if (flag is "--collision" or "-c") { mRobotScene?.LoadCollision (path); i++; }
+         else if (flag is "--script" or "-s") { mRobotScene?.LoadScript (path); mRobotScene?.StartPlay (); i++; }
+      }
    }
 
    void Exit      (object s, RoutedEventArgs e) => Close ();
