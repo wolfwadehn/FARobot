@@ -9,7 +9,9 @@ namespace FApp;
 class RobotScene : Scene3 {
    // Constructor --------------------------------------------------------------
    public RobotScene () {
-      mMech   = Mechanism.Load ("N:/Wad/FanucX/mechanism.curl");
+      var mechPath = Path.Combine (AppContext.BaseDirectory, "FanucX", "mechanism.curl");
+      if (!File.Exists (mechPath)) mechPath = "N:/Wad/FanucX/mechanism.curl";
+      mMech   = Mechanism.Load (mechPath);
       mTip    = mMech.FindChild ("Tip")!;
       mJoints = [.. "SLURBT".Select (a => mMech.FindChild (a.ToString ())!)];
 
@@ -207,7 +209,7 @@ class RobotScene : Scene3 {
       File.AppendAllText (ViewModel.ScriptPath, line + Environment.NewLine);
    }
 
-   void LoadScript (string path) {
+   internal void LoadScript (string path) {
       mScript.Clear (); mScriptIdx = 0;
       try {
          var ic = System.Globalization.CultureInfo.InvariantCulture;
@@ -223,15 +225,38 @@ class RobotScene : Scene3 {
       } catch (Exception ex) { Lib.Trace ($"Load failed: {ex.Message}"); }
    }
 
+   internal void LoadCollision (string path) {
+      try {
+         foreach (var line in File.ReadLines (path)) {
+            var p = line.Split (',');
+            if (p[0].Trim ().Equals ("Name", StringComparison.OrdinalIgnoreCase)) continue;
+            string name, group; int offset;
+            if (p.Length >= 11)      { name = p[0].Trim (); group = p[1].Trim (); offset = 2; }
+            else if (p.Length >= 10) { name = p[0].Trim (); group = "Box";        offset = 1; }
+            else continue;
+            var ic = System.Globalization.CultureInfo.InvariantCulture;
+            var d = new double[9]; bool ok = true;
+            for (int i = 0; i < 9 && ok; i++) ok = double.TryParse (p[offset + i].Trim (), System.Globalization.NumberStyles.Float, ic, out d[i]);
+            if (!ok) continue;
+            AddTri (name, group, new (d[0], d[1], d[2]), new (d[3], d[4], d[5]), new (d[6], d[7], d[8]));
+         }
+         Lib.Trace ($"Loaded {mTris.Count} collision triangles from {path}");
+      } catch (Exception ex) { Lib.Trace ($"Collision load failed: {ex.Message}"); }
+   }
+
+   internal void StartPlay () {
+      if (mScript.Count == 0) { Lib.Trace ("No script loaded"); return; }
+      mScriptIdx           = 0;
+      mPlayTimer.IsEnabled = true;
+      ViewModel.PlayLabel  = "Stop";
+   }
+
    void TogglePlay () {
       if (mPlayTimer.IsEnabled) {
          mPlayTimer.IsEnabled = false;
          ViewModel.PlayLabel  = "Play";
       } else {
-         if (mScript.Count == 0) { Lib.Trace ("No script loaded"); return; }
-         mScriptIdx           = 0;
-         mPlayTimer.IsEnabled = true;
-         ViewModel.PlayLabel  = "Stop";
+         StartPlay ();
       }
    }
 
@@ -363,7 +388,12 @@ class TcpVN : VNode {
 
 #region class InfoVN --------------------------------------------------------------------------------
 class InfoVN : VNode {
-   public InfoVN () { Streaming = true; }
+   public InfoVN () {
+      Streaming = true;
+      var fontPath = Path.Combine (AppContext.BaseDirectory, "GL", "Fonts", "RobotoMono-Regular.ttf");
+      mFace = new TypeFace (File.Exists (fontPath) ? File.ReadAllBytes (fontPath)
+                                                    : Lib.ReadBytes ("nori:GL/Fonts/RobotoMono-Regular.ttf"), 14);
+   }
    public required RobotScene Scene { private get; init; }
 
    public override void SetAttributes () { Lux.Color = Color4.White; Lux.TypeFace = mFace; Lux.ZLevel = 90; }
@@ -379,7 +409,7 @@ class InfoVN : VNode {
       Line ($"R={joints[3].JValue,7:F1}°  B={joints[4].JValue,7:F1}°  T={joints[5].JValue,7:F1}°");
    }
 
-   readonly TypeFace mFace = new (Lib.ReadBytes ("nori:GL/Fonts/RobotoMono-Regular.ttf"), 14);
+   readonly TypeFace mFace;
 }
 #endregion
 
