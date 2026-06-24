@@ -80,8 +80,10 @@
          <!-- Both slider and textbox bind to the same ViewModel property,   -->
          <!-- so they always stay in sync without any code-behind.           -->
          <TextBlock Text="Inverse Kinematics" Style="{StaticResource SectionHeader}"/>
-         <Button Content="Home Position" HorizontalAlignment="Left"
-                 Margin="6,0,6,6" Command="{Binding HomeCommand}"/>
+         <StackPanel Orientation="Horizontal" Margin="2,0,2,6">
+            <Button Content="Home Position" Command="{Binding HomeCommand}"/>
+            <Button Content="Set Home"      Click="OnSetHome"/>
+         </StackPanel>
 
          <StackPanel Orientation="Horizontal" Margin="4,0,4,2">
             <TextBlock Text="X"  Style="{StaticResource SliderLabel}"/>

@@ -55,7 +55,7 @@ class RobotScene : Scene3 {
       ViewModel.WaypointScrubbed    += ApplyWaypointPos;
       ViewModel.FrameToggled        += ComputeIK;
       LoadFrame ();
-      ViewModel.SetIKPose (mHome.Org.X, mHome.Org.Y, mHome.Org.Z + LJointZ, -90, 0, 0);
+      GoHome ();
 
       mPlayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds (40) };
       mPlayTimer.Tick += (_, _) => TickScript ();
@@ -90,7 +90,7 @@ class RobotScene : Scene3 {
       => mHasFrame ? (mFrameP1, mFrameP2, mFrameP3) : null;
 
    // The taught pickup pose in world coords (null when not set) — drawn by FrameVN.
-   public CoordSystem? PickupCS => mHasPickup ? mPickupCS : null;
+   public CoordSystem? PickupCS => mHasPickup ? PickupPose () : null;
 
    // Implementation -----------------------------------------------------------
    public override void Detached () => mPlayTimer.IsEnabled = false;
@@ -148,29 +148,21 @@ class RobotScene : Scene3 {
    //         so interpolated motion takes the short joint path instead of flipping the
    //         wrist to a limit.
    void ComputeIK () {
-      // Build the target TCP pose in the active reference frame: orientation first
-      // (X-then-Y-then-Z Euler), then position.  The values come straight from the
-      // ViewModel, which are pallet-frame coordinates when a frame is active.
-      var pose  = CoordSystem.World;
-      pose     *= Matrix3.Rotation (EAxis.X, ViewModel.Rx.D2R ());
-      pose     *= Matrix3.Rotation (EAxis.Y, ViewModel.Ry.D2R ());
-      pose     *= Matrix3.Rotation (EAxis.Z, ViewModel.Rz.D2R ());
-      pose     += new Vector3 (ViewModel.X, ViewModel.Y, ViewModel.Z);
-      if (FrameActive) pose *= Matrix3.To (mFrame);   // pallet-local → world
-      // LJointZ: the solver works relative to the L-joint plane, so drop world Z by it.
+      // World TCP pose for the current ViewModel values, then drop world Z by LJointZ
+      // since the solver works relative to the L-joint plane.
+      var pose  = CurrentWorldPose ();
       pose     += new Vector3 (0, 0, -LJointZ);
       // Back-solve wrist = TCP − R × TCP_offset, then hand the wrist pose to the solver.
       var wrist = pose.Org - pose.VecX * mTcpOffset.X - pose.VecY * mTcpOffset.Y - pose.VecZ * mTcpOffset.Z;
       mCS = new CoordSystem (wrist, pose.VecX, pose.VecY);
       mSolver.ComputeStances (mCS.Org, mCS.VecZ, mCS.VecX);
-      // Choose the valid solution nearest the current joint configuration (least total
-      // angular travel) so the arm doesn't jump branches and flip the wrist mid-move.
+      // Score every valid solution: strongly avoid joint limits and the wrist singularity
+      // (B≈0), then prefer the one nearest the current pose (least travel) so the arm
+      // moves smoothly without locking the wrist.
       int best = -1; double bestCost = double.MaxValue;
       for (int j = 0; j < 8; j++) {
-         var a = mSolver.Solutions[j];
-         if (!a.OK) continue;
-         double cost = 0;
-         for (int i = 0; i < 6; i++) { double d = a.GetJointAngle (i) - mJoints[i].JValue; cost += d * d; }
+         if (!mSolver.Solutions[j].OK) continue;
+         double cost = SolutionCost (j);
          if (cost < bestCost) { bestCost = cost; best = j; }
       }
       if (best >= 0) {
@@ -179,6 +171,41 @@ class RobotScene : Scene3 {
       }
       mGripper.Xfm = mTip.Xfm;
       CheckCollisions ();
+   }
+
+   // Cost of an IK solution = limit/singularity penalty (dominant) + travel from the
+   // current configuration.  Lower is better.
+   double SolutionCost (int j) {
+      var sol = mSolver.Solutions[j];
+      double penalty = 0, travel = 0;
+      for (int i = 0; i < 6; i++) {
+         double a = sol.GetJointAngle (i);
+         double d = a - mJoints[i].JValue; travel += d * d;
+         // Quadratic ramp once a joint comes within Margin° of either limit.
+         double room = Math.Min (a - mMin[i], mMax[i] - a);
+         if (room < Margin) penalty += (Margin - room) * (Margin - room);
+      }
+      // Wrist singularity: the B axis (index 4) passing through 0° aligns R and T.
+      double b = Math.Abs (sol.GetJointAngle (4));
+      if (b < Margin) penalty += (Margin - b) * (Margin - b);
+      return penalty * 1e4 + travel;
+   }
+
+   // Degrees of clearance from a joint limit (or from the wrist singularity) within
+   // which the IK selector starts penalising a solution.
+   const double Margin = 20;
+
+   // The current TCP pose in WORLD coords, built from the ViewModel values (which are
+   // pallet-frame coordinates when a frame is active).  Orientation first (X-then-Y-then-Z
+   // Euler), then position, then pallet-local → world.
+   CoordSystem CurrentWorldPose () {
+      var pose = CoordSystem.World;
+      pose    *= Matrix3.Rotation (EAxis.X, ViewModel.Rx.D2R ());
+      pose    *= Matrix3.Rotation (EAxis.Y, ViewModel.Ry.D2R ());
+      pose    *= Matrix3.Rotation (EAxis.Z, ViewModel.Rz.D2R ());
+      pose    += new Vector3 (ViewModel.X, ViewModel.Y, ViewModel.Z);
+      if (FrameActive) pose *= Matrix3.To (mFrame);
+      return pose;
    }
 
    void OnFK () {
@@ -317,8 +344,15 @@ class RobotScene : Scene3 {
    // Scrub increment per timer tick.  At a 40 ms interval, 0.04 ≈ one segment per second.
    const double PlayStep = 0.04;
 
-   internal void GoHome () =>
-      ViewModel.SetIKPose (mHome.Org.X, mHome.Org.Y, mHome.Org.Z + LJointZ, -90, 0, 0);
+   internal void GoHome () => SetIKDisplayFromWorld (mHome);
+
+   // Captures the robot's current TCP pose as the new home, then re-solves the pickup
+   // path (if a pickup is set) so the generated waypoints start from the new home.
+   internal void SetHome () {
+      mHome = CurrentWorldPose ();
+      Lib.Trace ($"Home set at ({mHome.Org.X:F0}, {mHome.Org.Y:F0}, {mHome.Org.Z:F0})");
+      if (mHasPickup && mHasFrame) GenerateWaypoints ();
+   }
 
    // ── Pallet frame ──────────────────────────────────────────────────────────
    // Builds the pallet frame from the 3 calibration points, persists it, and turns
@@ -392,8 +426,9 @@ class RobotScene : Scene3 {
          var ext  = Path.GetExtension (path).ToLowerInvariant ();
          var mesh = ext == ".obj" ? Mesh3.LoadObj (path) : new STLReader (path).BuildMesh ();
          if (mPalletVN != null) mPalletGroup.Remove (mPalletVN);
+         if (mPickupHiliteVN != null) { mPalletGroup.Remove (mPickupHiliteVN); mPickupHiliteVN = null; }
          mPallet   = mesh;
-         mPalletVN = new Mesh3VN (mesh) { Mode = EShadeMode.Phong, Color = Color4.Gray (160) };
+         mPalletVN = new Mesh3VN (mesh) { Mode = EShadeMode.Phong, Color = PalletColor };
          mPalletGroup.Add (mPalletVN);
          ViewModel.PalletStatus = $"{Path.GetFileName (path)} — {mesh.Triangle.Length / 3} tris";
          Lux.UIScene?.ZoomExtents ();
@@ -408,6 +443,7 @@ class RobotScene : Scene3 {
    internal void BeginPickCorner () {
       if (mPallet == null) { Lib.Trace ("Import a pallet first"); return; }
       mPickMode = EPickMode.Corner;
+      ArmHighlight (true);
       Lib.Trace ("Click near a pallet corner to set the frame (50×50 mm inward)");
    }
 
@@ -415,8 +451,16 @@ class RobotScene : Scene3 {
    internal void BeginPickPickup () {
       if (mPallet == null) { Lib.Trace ("Import a pallet first"); return; }
       mPickMode = EPickMode.Pickup;
+      ArmHighlight (true);
       Lib.Trace ("Click the pallet surface to set the pickup position");
    }
+
+   // Tints the whole pallet while a pick mode is armed, so it reads as "click me".
+   void ArmHighlight (bool on) {
+      if (mPalletVN != null) mPalletVN.Color = on ? Color4.Cyan : PalletColor;
+      Lux.Redraw ();
+   }
+   static readonly Color4 PalletColor = Color4.Gray (160);
 
    // Builds the work frame from the bounding-box corner nearest the clicked point,
    // offset 50 mm inward along X and Y.  Axes stay world-aligned (X+, Y+, Z up); the
@@ -428,45 +472,61 @@ class RobotScene : Scene3 {
       double cx = nearMinX ? b.X.Min : b.X.Max, sx = nearMinX ? 1 : -1;
       double cy = nearMinY ? b.Y.Min : b.Y.Max, sy = nearMinY ? 1 : -1;
       var origin = new Point3 (cx + sx * 50, cy + sy * 50, hit.Z);
+      ArmHighlight (false);
       // Reuse the 3-point builder/persistence: +X and +XY helper points along world axes.
       SetPalletFrame (origin, origin + new Vector3 (100, 0, 0), origin + new Vector3 (0, 100, 0));
    }
 
-   // Fixes the pickup pose at the clicked surface: position = hit point, approach axis
-   // = into the surface (anti-normal), and previews it by driving the robot there.
+   // Fixes the pickup at the clicked surface point.  Only the POSITION comes from the
+   // surface; the orientation is taken from the current home pose (see PickupPose), so the
+   // robot translates to the pickup without reorienting the wrist.  Highlights the face
+   // and previews the move.
    void SetPickup (Point3 hit) {
-      var normal  = NormalAt (mPallet!, hit);
-      // Heading reference = the user frame's X axis, so the tool faces consistently with
-      // the pallet frame instead of an arbitrary direction (which twists the wrist away).
-      var heading = mHasFrame ? mFrame.VecX : Vector3.XAxis;
-      mPickupCS   = ApproachFrame (hit, -normal, heading);   // TCP Z points into the surface
-      mHasPickup  = true;
-      var local  = mHasFrame ? mPickupCS * Matrix3.From (mFrame) : mPickupCS;
+      ArmHighlight (false);
+      var face = FindFace (mPallet!, hit);
+      if (face is not { } f) { Lib.Trace ("No surface found at that click"); return; }
+      mPickupPt  = hit;
+      mHasPickup = true;
+      HighlightFace (f.A, f.B, f.C, f.Normal);
+      var pose  = PickupPose ();
+      var local = mHasFrame ? pose * Matrix3.From (mFrame) : pose;
       ViewModel.PickupStatus = $"frame ({local.Org.X:F0}, {local.Org.Y:F0}, {local.Org.Z:F0})";
-      SetIKDisplayFromWorld (mPickupCS);            // move robot to the pickup as a preview
+      SetIKDisplayFromWorld (pose);                 // move robot to the pickup as a preview
    }
 
-   // Generates Home → reorient → approach → pickup → retract and writes them to the
-   // script file in frame-relative coordinates, then loads them and turns the frame on
-   // for playback.
+   // The pickup pose in WORLD coords: the selected surface point with the current home
+   // orientation.  Because the orientation tracks home, editing home (Set Home) keeps the
+   // approach aligned with it.
+   CoordSystem PickupPose () => new (mPickupPt, mHome.VecX, mHome.VecY);
+
+   // Draws the selected pickup triangle as a bright overlay (offset 1 mm along its normal
+   // to avoid z-fighting with the pallet surface).
+   void HighlightFace (Point3 a, Point3 b, Point3 c, Vector3 n) {
+      if (mPickupHiliteVN != null) mPalletGroup.Remove (mPickupHiliteVN);
+      var o    = n * 1.0;
+      var mesh = new Mesh3Builder ([a + o, b + o, c + o]).Build ();
+      mPickupHiliteVN = new Mesh3VN (mesh) { Mode = EShadeMode.Glass, Color = new Color4 (255, 140, 0) };
+      mPalletGroup.Add (mPickupHiliteVN);
+      Lux.Redraw ();
+   }
+
+   // Generates Home → approach → pickup → retract and writes them to the script file in
+   // frame-relative coordinates, then loads them and turns the frame on for playback.
+   // Every waypoint keeps the home orientation, so the robot only translates — no wrist
+   // reorientation that would swing it to a limit.
    internal void GenerateWaypoints () {
       if (!mHasPickup) { Lib.Trace ("Set a pickup position first"); return; }
       if (!mHasFrame)  { Lib.Trace ("Calibrate the pallet frame first"); return; }
-      const double clearance = 100;                       // mm above the pickup along approach
-      var approach = mPickupCS + mPickupCS.VecZ * -clearance;   // back off along +normal
-      var home     = CoordSystem.World;
-      home        *= Matrix3.Rotation (EAxis.X, (-90.0).D2R ());
-      home        += new Vector3 (mHome.Org.X, mHome.Org.Y, mHome.Org.Z + LJointZ);
-      // Reorient the TCP to the pickup approach orientation while still at the home
-      // position: the wrist rotates in place first, instead of swinging through a joint
-      // limit while also translating to the pickup.
-      var reorient = new CoordSystem (home.Org, mPickupCS.VecX, mPickupCS.VecY);
-      CoordSystem[] path = [home, reorient, approach, mPickupCS, approach];   // last = retract
+      const double clearance = 100;                  // mm above the pickup, along pallet +Z
+      var pickup   = PickupPose ();                  // surface point, home orientation
+      var approach = pickup + mFrame.VecZ * clearance;   // staged directly above the pickup
+      var home     = mHome;                          // world TCP home pose
+      CoordSystem[] path = [home, approach, pickup, approach];   // last = retract
 
       try {
          var ic = System.Globalization.CultureInfo.InvariantCulture;
          var sb = new StringBuilder ();
-         sb.AppendLine ("# Generated waypoints (frame-relative): Home, reorient, approach, pickup, retract");
+         sb.AppendLine ("# Generated waypoints (frame-relative): Home, approach, pickup, retract");
          foreach (var w in path) {
             var local        = w * Matrix3.From (mFrame);
             var (rx, ry, rz) = MatrixToEuler (local);
@@ -488,35 +548,22 @@ class RobotScene : Scene3 {
       ViewModel.SetIKPose (cs.Org.X, cs.Org.Y, cs.Org.Z, rx, ry, rz);
    }
 
-   // A right-handed frame at 'org' whose Z axis is 'approachZ'.  The tool's X heading is
-   // 'headingRef' projected onto the plane ⊥ Z, so the TCP faces consistently with the
-   // user frame rather than an arbitrary direction (which can twist the wrist to a limit).
-   static CoordSystem ApproachFrame (Point3 org, Vector3 approachZ, Vector3 headingRef) {
-      var z = approachZ.Normalized ();
-      var x = headingRef - z * headingRef.Dot (z);     // project heading onto the ⊥Z plane
-      if (x.Length < 1e-6) {                            // heading parallel to Z → pick a fallback
-         var alt = Math.Abs (z.X) > 0.9 ? Vector3.YAxis : Vector3.XAxis;
-         x = alt - z * alt.Dot (z);
-      }
-      x = x.Normalized ();
-      var y = (z * x).Normalized ();                    // z × x  ⟹  VecZ = x × y = z (approach)
-      return new CoordSystem (org, x, y);
-   }
 
-   // Outward unit normal of the mesh triangle the hit point lies on (closest by
-   // perpendicular distance among triangles whose face contains the projected point).
-   static Vector3 NormalAt (Mesh3 mesh, Point3 hit) {
+   // The mesh triangle the hit point lies on (closest by perpendicular distance among
+   // triangles whose face contains the projected point), with its outward unit normal.
+   static (Vector3 Normal, Point3 A, Point3 B, Point3 C)? FindFace (Mesh3 mesh, Point3 hit) {
       var tris = mesh.Triangle; var v = mesh.Vertex;
-      double best = double.MaxValue; Vector3 bestN = Vector3.ZAxis;
+      double best = double.MaxValue;
+      (Vector3, Point3, Point3, Point3)? found = null;
       for (int i = 0; i < tris.Length; i += 3) {
          Point3 a = (Point3)v[tris[i]].Pos, b = (Point3)v[tris[i + 1]].Pos, c = (Point3)v[tris[i + 2]].Pos;
          var cross = (b - a) * (c - a);
          double len = cross.Length; if (len < 1e-9) continue;
          var n    = cross / len;
          double d = (hit - a).Dot (n);
-         if (Math.Abs (d) < best && InTriangle (hit - n * d, a, b, c)) { best = Math.Abs (d); bestN = n; }
+         if (Math.Abs (d) < best && InTriangle (hit - n * d, a, b, c)) { best = Math.Abs (d); found = (n, a, b, c); }
       }
-      return bestN;
+      return found;
    }
 
    // Barycentric point-in-triangle test (with a small tolerance for edge hits).
@@ -570,9 +617,15 @@ class RobotScene : Scene3 {
    //   = Base.Sockets.Z (266.5 mm) + S-link.Sockets.Z (298.5 mm) = 565 mm.
    //   The IK solver expects all Z values relative to this plane, not from the floor.
    const double LJointZ = 565;
-   // mHome: arm's-length pose used to initialise the ViewModel.
-   //   X=1166 mm (TCP reach), Y=0 (centred), Z=1161 mm world = (1161-LJointZ) above L-joint.
-   readonly CoordSystem mHome = new (new (1166, 0, 1161 - LJointZ), Vector3.XAxis, Vector3.YAxis);
+   // mHome: full home TCP pose in WORLD coords (position + orientation).  Defaults to the
+   // arm's-length pose; the user can overwrite it from the current pose via SetHome.
+   CoordSystem mHome = DefaultHome ();
+   static CoordSystem DefaultHome () {
+      var cs = CoordSystem.World;
+      cs    *= Matrix3.Rotation (EAxis.X, (-90.0).D2R ());   // home orientation (TCP Z → +Y)
+      cs    += new Vector3 (1166, 0, 1161);                  // X=reach, Y=centred, Z world
+      return cs;
+   }
    CoordSystem          mCS;
    readonly double[]    mMin    = new double[6], mMax = new double[6];
    readonly RBRSolver   mSolver;
@@ -596,7 +649,8 @@ class RobotScene : Scene3 {
    readonly GroupVN mPalletGroup;
    Mesh3?           mPallet;
    Mesh3VN?         mPalletVN;
-   CoordSystem      mPickupCS;
+   Mesh3VN?         mPickupHiliteVN;
+   Point3           mPickupPt;
    bool             mHasPickup;
    EPickMode        mPickMode;
    enum EPickMode { None, Corner, Pickup }

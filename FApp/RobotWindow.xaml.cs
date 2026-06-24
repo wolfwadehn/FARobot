@@ -49,6 +49,8 @@ public partial class RobotWindow : Window {
       if (ofd.ShowDialog () is true) mScene.ImportPallet (ofd.FileName);
    }
 
+   void OnSetHome (object sender, RoutedEventArgs e) => mScene?.SetHome ();
+
    void OnPickCorner       (object sender, RoutedEventArgs e) => mScene?.BeginPickCorner ();
    void OnPickPickup       (object sender, RoutedEventArgs e) => mScene?.BeginPickPickup ();
    void OnGenerateWaypoints (object sender, RoutedEventArgs e) => mScene?.GenerateWaypoints ();
