@@ -1,0 +1,28 @@
+# Sample sheet-metal part (200 x 150 x 5 mm), origin at a base corner so it sits on the
+# pallet at the calibrated frame.  Outward-wound triangles.
+v 0 0 0
+v 200 0 0
+v 200 150 0
+v 0 150 0
+v 0 0 5
+v 200 0 5
+v 200 150 5
+v 0 150 5
+# top (+Z)
+f 5 6 7
+f 5 7 8
+# bottom (-Z)
+f 1 4 3
+f 1 3 2
+# front (-Y)
+f 1 2 6
+f 1 6 5
+# back (+Y)
+f 4 8 7
+f 4 7 3
+# left (-X)
+f 1 5 8
+f 1 8 4
+# right (+X)
+f 2 3 7
+f 2 7 6

@@ -62,6 +62,8 @@ class RobotViewModel : INotifyPropertyChanged {
    // ── Pallet geometry / pickup teach ────────────────────────────────────────
    public string PalletStatus { get => mPalletStatus; set { mPalletStatus = value; Notify (); } }
    public string PickupStatus { get => mPickupStatus; set { mPickupStatus = value; Notify (); } }
+   public string PlaceStatus  { get => mPlaceStatus;  set { mPlaceStatus  = value; Notify (); } }
+   public string PartStatus   { get => mPartStatus;   set { mPartStatus   = value; Notify (); } }
 
    // ── Script playback ───────────────────────────────────────────────────────
    public string ScriptPath { get => mScriptPath; set { mScriptPath = value; Notify (); } }
@@ -86,6 +88,42 @@ class RobotViewModel : INotifyPropertyChanged {
    // ── Collision triangle list shown in the sidebar ──────────────────────────
    public ObservableCollection<CollisionTriVM> Triangles { get; } = [];
 
+   // ── Waypoint list (one row per script waypoint) ───────────────────────────
+   public ObservableCollection<WaypointVM> Waypoints { get; } = [];
+
+   // ── Imported objects: selection, 6-DOF placement, and 6-param user frame ──
+   public ObservableCollection<ObjectItemVM> Objects { get; } = [];
+   public int SelectedObject { get => mSelObj; set { mSelObj = value; Notify (); SelectedObjectChanged?.Invoke (); } }
+
+   // Selected object's placement in world (mm / degrees).  UI edits fire ObjMoved.
+   public double ObjX  { get => mObjX;  set { mObjX  = value; Notify (); ObjMoved?.Invoke (); } }
+   public double ObjY  { get => mObjY;  set { mObjY  = value; Notify (); ObjMoved?.Invoke (); } }
+   public double ObjZ  { get => mObjZ;  set { mObjZ  = value; Notify (); ObjMoved?.Invoke (); } }
+   public double ObjRx { get => mObjRx; set { mObjRx = value; Notify (); ObjMoved?.Invoke (); } }
+   public double ObjRy { get => mObjRy; set { mObjRy = value; Notify (); ObjMoved?.Invoke (); } }
+   public double ObjRz { get => mObjRz; set { mObjRz = value; Notify (); ObjMoved?.Invoke (); } }
+
+   // Selected object's user frame, 6 parameters (world mm / degrees).  UI edits fire FrameEdited.
+   public double FrX  { get => mFrX;  set { mFrX  = value; Notify (); FrameEdited?.Invoke (); } }
+   public double FrY  { get => mFrY;  set { mFrY  = value; Notify (); FrameEdited?.Invoke (); } }
+   public double FrZ  { get => mFrZ;  set { mFrZ  = value; Notify (); FrameEdited?.Invoke (); } }
+   public double FrRx { get => mFrRx; set { mFrRx = value; Notify (); FrameEdited?.Invoke (); } }
+   public double FrRy { get => mFrRy; set { mFrRy = value; Notify (); FrameEdited?.Invoke (); } }
+   public double FrRz { get => mFrRz; set { mFrRz = value; Notify (); FrameEdited?.Invoke (); } }
+
+   public event Action? SelectedObjectChanged, ObjMoved, FrameEdited;
+
+   // Code-side setters that update the fields/UI WITHOUT firing the edit events (used by
+   // RobotScene to push the selected object's values into the panel on selection).
+   public void SetObjMove (double x, double y, double z, double rx, double ry, double rz) {
+      (mObjX, mObjY, mObjZ, mObjRx, mObjRy, mObjRz) = (x, y, z, rx, ry, rz);
+      foreach (var n in new[] { nameof (ObjX), nameof (ObjY), nameof (ObjZ), nameof (ObjRx), nameof (ObjRy), nameof (ObjRz) }) Notify (n);
+   }
+   public void SetObjFrame (double x, double y, double z, double rx, double ry, double rz) {
+      (mFrX, mFrY, mFrZ, mFrRx, mFrRy, mFrRz) = (x, y, z, rx, ry, rz);
+      foreach (var n in new[] { nameof (FrX), nameof (FrY), nameof (FrZ), nameof (FrRx), nameof (FrRy), nameof (FrRz) }) Notify (n);
+   }
+
    // ── Events subscribed by RobotScene ──────────────────────────────────────
    public event Action?         IKChanged;
    public event Action?         BoxChanged;
@@ -108,9 +146,14 @@ class RobotViewModel : INotifyPropertyChanged {
    string mFrameStatus  = "(not calibrated)";
    string mPalletStatus = "(no geometry)";
    string mPickupStatus = "(not set)";
+   string mPlaceStatus  = "(not set)";
+   string mPartStatus   = "(no part)";
    string mScriptPath = Path.Combine (AppContext.BaseDirectory, "robot_script.txt");
    string mPlayLabel  = "Play";
    double mWaypointPos, mWaypointMax;
+   int    mSelObj = -1;
+   double mObjX, mObjY, mObjZ, mObjRx, mObjRy, mObjRz;
+   double mFrX, mFrY, mFrZ, mFrRx, mFrRy, mFrRz;
 }
 #endregion
 
@@ -155,6 +198,38 @@ class CollisionTriVM {
    public string  Name          { get; }
    public string  Group         { get; }
    public Brush   GroupBrush    { get; }
+   public ICommand RemoveCommand { get; }
+}
+#endregion
+
+// ── ObjectItemVM ──────────────────────────────────────────────────────────────────────────────────
+// One entry in the imported-objects combo box.
+#region class ObjectItemVM -------------------------------------------------------------------------
+class ObjectItemVM (string name) {
+   public string Name { get; } = name;
+}
+#endregion
+
+// ── WaypointVM ────────────────────────────────────────────────────────────────────────────────────
+// One row in the waypoint list.  GoCommand scrubs the robot to this waypoint; ActionCommand
+// cycles its action Move→Pick→Place; RemoveCommand deletes it.  Rebuilt on every change.
+#region class WaypointVM ---------------------------------------------------------------------------
+class WaypointVM {
+   public WaypointVM (int number, string action, Brush actionBrush,
+                      Action go, Action cycle, Action remove) {
+      Name          = $"WP {number}";
+      Action        = action;
+      ActionBrush   = actionBrush;
+      GoCommand     = new DelegateCommand (go);
+      ActionCommand = new DelegateCommand (cycle);
+      RemoveCommand = new DelegateCommand (remove);
+   }
+
+   public string   Name          { get; }
+   public string   Action        { get; }
+   public Brush    ActionBrush   { get; }
+   public ICommand GoCommand     { get; }
+   public ICommand ActionCommand { get; }
    public ICommand RemoveCommand { get; }
 }
 #endregion

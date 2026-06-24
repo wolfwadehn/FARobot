@@ -20,29 +20,21 @@ public partial class MainWindow : Window {
 
    void OnLuxReady () {
       new SceneManipulator ();
+      mRobotScene = new RobotScene ();
+      Lux.UIScene = mRobotScene;
+      mRobotPanel.SetScene (mRobotScene);
       if (mToolbarHost.Child is Toolbar tb)
-         tb.AddButton ("⊕", "Show Robot Controls", OpenRobot);
-      OpenRobot ();
+         tb.AddButton ("⚙", "TCP Offset", ShowTcpOffsetDlg);
    }
 
    void Exit      (object s, RoutedEventArgs e) => Close ();
    void ZoomExtents (object s, RoutedEventArgs e) => Lux.UIScene?.ZoomExtents ();
    void RobotHome (object s, RoutedEventArgs e) => mRobotScene?.GoHome ();
 
-   void OpenRobot (object s, RoutedEventArgs e) => OpenRobot ();
-   void OpenRobot () {
-      if (mRobotWin is { IsVisible: true }) { mRobotWin.Activate (); return; }
-      mRobotScene ??= new RobotScene ();
-      Lux.UIScene  = mRobotScene;
-      mRobotWin    = new RobotWindow ();
-      var wa       = SystemParameters.WorkArea;
-      mRobotWin.Left = wa.Right - mRobotWin.Width - 10;
-      mRobotWin.Top  = wa.Top;
-      mRobotWin.Show ();
-      mRobotWin.SetScene (mRobotScene);
-      if (mTcpOffsetBtn == null && mToolbarHost.Child is Toolbar tb)
-         mTcpOffsetBtn = tb.AddButton ("⚙", "TCP Offset", ShowTcpOffsetDlg);
-   }
+   // Toggles the docked controls panel.
+   void OpenRobot (object s, RoutedEventArgs e) =>
+      mRobotPanel.Visibility = mRobotPanel.Visibility == Visibility.Visible
+                               ? Visibility.Collapsed : Visibility.Visible;
 
    void ShowTcpOffsetDlg () {
       if (mRobotScene == null) return;
@@ -94,7 +86,5 @@ public partial class MainWindow : Window {
       MessageBox.Show (this, sb.ToString (), "About FApp", MessageBoxButton.OK);
    }
 
-   RobotScene?  mRobotScene;
-   RobotWindow? mRobotWin;
-   System.Windows.Controls.Border? mTcpOffsetBtn;
+   RobotScene? mRobotScene;
 }
