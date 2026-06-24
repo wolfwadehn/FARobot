@@ -120,6 +120,35 @@
                      Style="{StaticResource SliderBox}"/>
          </StackPanel>
 
+         <!-- ── Pallet Frame ────────────────────────────────────────────── -->
+         <!-- "Calibrate…" opens the 3-point dialog (handled in code-behind).   -->
+         <!-- When "Use frame" is checked, the IK X/Y/Z/Rx/Ry/Rz values above   -->
+         <!-- are interpreted in the calibrated pallet frame instead of world.  -->
+         <TextBlock Text="Pallet Frame" Style="{StaticResource SectionHeader}"/>
+         <TextBlock Text="{Binding FrameStatus}" Margin="8,0,8,4"
+                    Foreground="Silver" TextWrapping="Wrap"/>
+         <StackPanel Orientation="Horizontal" Margin="2,0,2,4">
+            <CheckBox Content="Use frame" IsChecked="{Binding UseFrame, Mode=TwoWay}"
+                      Foreground="#E8E8F0" VerticalAlignment="Center" Margin="6,2,8,2"/>
+            <Button Content="Calibrate…" Click="OnCalibrateFrame"/>
+            <Button Content="Clear"      Click="OnClearFrame"/>
+         </StackPanel>
+
+         <!-- ── Pallet Pick &amp; Path ───────────────────────────────────── -->
+         <!-- Import pallet geometry, set the frame at a clicked corner, fix a    -->
+         <!-- pickup surface, then generate a Home→approach→pickup→retract path.  -->
+         <TextBlock Text="Pallet Pick &amp; Path" Style="{StaticResource SectionHeader}"/>
+         <TextBlock Text="{Binding PalletStatus}" Margin="8,0,8,2" Foreground="Silver" TextWrapping="Wrap"/>
+         <StackPanel Orientation="Horizontal" Margin="2,0,2,2">
+            <Button Content="Import Geometry…"  Click="OnImportPallet"/>
+            <Button Content="Set Frame @ Corner" Click="OnPickCorner"/>
+         </StackPanel>
+         <TextBlock Text="{Binding PickupStatus}" Margin="8,2,8,2" Foreground="Silver" TextWrapping="Wrap"/>
+         <StackPanel Orientation="Horizontal" Margin="2,0,2,4">
+            <Button Content="Pick Pickup Surface" Click="OnPickPickup"/>
+            <Button Content="Generate Waypoints"  Click="OnGenerateWaypoints"/>
+         </StackPanel>
+
          <!-- ── Obstacle ────────────────────────────────────────────────── -->
          <TextBlock Text="Obstacle" Style="{StaticResource SectionHeader}"/>
 
@@ -151,6 +180,16 @@
             <Button Content="Load"               Command="{Binding LoadCommand}"/>
             <Button Content="Add"                Command="{Binding AddCommand}"/>
             <Button Content="{Binding PlayLabel}" Command="{Binding PlayCommand}"/>
+         </StackPanel>
+         <!-- Scrub between waypoints (drag to step through); Play animates this -->
+         <!-- value from the first waypoint to the last as a single cycle.        -->
+         <StackPanel Orientation="Horizontal" Margin="4,0,4,4">
+            <TextBlock Text="WP" Style="{StaticResource SliderLabel}"/>
+            <Slider Minimum="0" Maximum="{Binding WaypointMax}" MinWidth="130"
+                    Value="{Binding WaypointPos, Mode=TwoWay}"
+                    TickFrequency="1" IsSnapToTickEnabled="False"/>
+            <TextBox Text="{Binding WaypointPos, Converter={StaticResource dc}, Mode=OneWay}"
+                     IsReadOnly="True" Style="{StaticResource SliderBox}"/>
          </StackPanel>
 
          <!-- ── Collision Triangles ─────────────────────────────────────── -->

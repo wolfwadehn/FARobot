@@ -28,6 +28,31 @@ public partial class RobotWindow : Window {
          mScene.AddTri (dlg.TriName, dlg.Group, dlg.P1, dlg.P2, dlg.P3);
    }
 
+   // Opens the 3-point calibration dialog (prefilled with the current frame, if any)
+   // and applies the resulting pallet frame to the scene.
+   void OnCalibrateFrame (object sender, RoutedEventArgs e) {
+      if (mScene == null) return;
+      var dlg = new PalletFrameDialog (mScene.FramePoints) { Owner = this };
+      if (dlg.ShowDialog () is true)
+         mScene.SetPalletFrame (dlg.Origin, dlg.XDir, dlg.PlanePt);
+   }
+
+   void OnClearFrame (object sender, RoutedEventArgs e) => mScene?.ClearPalletFrame ();
+
+   // ── Pallet pick & path ────────────────────────────────────────────────────
+   void OnImportPallet (object sender, RoutedEventArgs e) {
+      if (mScene == null) return;
+      var ofd = new Microsoft.Win32.OpenFileDialog {
+         Filter = "Mesh files|*.stl;*.obj|STL files|*.stl|OBJ files|*.obj|All files|*.*",
+         Title  = "Import Pallet Geometry"
+      };
+      if (ofd.ShowDialog () is true) mScene.ImportPallet (ofd.FileName);
+   }
+
+   void OnPickCorner       (object sender, RoutedEventArgs e) => mScene?.BeginPickCorner ();
+   void OnPickPickup       (object sender, RoutedEventArgs e) => mScene?.BeginPickPickup ();
+   void OnGenerateWaypoints (object sender, RoutedEventArgs e) => mScene?.GenerateWaypoints ();
+
    // Fields -------------------------------------------------------------------
    RobotScene? mScene;
 }

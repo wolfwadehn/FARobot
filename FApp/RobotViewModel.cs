@@ -52,9 +52,27 @@ class RobotViewModel : INotifyPropertyChanged {
    public double BY { get => mBY; set { mBY = value; Notify (); BoxChanged?.Invoke (); } }
    public double BZ { get => mBZ; set { mBZ = value; Notify (); BoxChanged?.Invoke (); } }
 
+   // ── Pallet frame ──────────────────────────────────────────────────────────
+   // When UseFrame is on, the IK X/Y/Z/Rx/Ry/Rz above are interpreted relative to
+   // the calibrated pallet frame instead of the robot world.  RobotScene owns the
+   // actual frame; toggling here re-runs the IK solve via FrameToggled.
+   public bool UseFrame { get => mUseFrame; set { mUseFrame = value; Notify (); FrameToggled?.Invoke (); } }
+   public string FrameStatus { get => mFrameStatus; set { mFrameStatus = value; Notify (); } }
+
+   // ── Pallet geometry / pickup teach ────────────────────────────────────────
+   public string PalletStatus { get => mPalletStatus; set { mPalletStatus = value; Notify (); } }
+   public string PickupStatus { get => mPickupStatus; set { mPickupStatus = value; Notify (); } }
+
    // ── Script playback ───────────────────────────────────────────────────────
    public string ScriptPath { get => mScriptPath; set { mScriptPath = value; Notify (); } }
    public string PlayLabel  { get => mPlayLabel;  set { mPlayLabel  = value; Notify (); } }
+
+   // Continuous scrub position over the loaded waypoints: integer part = waypoint
+   // index, fractional part = interpolation toward the next one.  Max is count−1.
+   // Dragging the slider fires WaypointScrubbed; Play animates this value one cycle.
+   public double WaypointPos { get => mWaypointPos; set { mWaypointPos = value; Notify (); WaypointScrubbed?.Invoke (); } }
+   public double WaypointMax { get => mWaypointMax; set { mWaypointMax = value; Notify (); } }
+   public event Action? WaypointScrubbed;
 
    // Commands bound to buttons in XAML.
    public ICommand HomeCommand { get; }
@@ -75,6 +93,7 @@ class RobotViewModel : INotifyPropertyChanged {
    public event Action<string>? LoadScriptRequested;
    public event Action?         AddRequested;
    public event Action?         PlayRequested;
+   public event Action?         FrameToggled;
 
    public RobotViewModel () {
       HomeCommand = new DelegateCommand (() => HomeRequested?.Invoke ());
@@ -85,8 +104,13 @@ class RobotViewModel : INotifyPropertyChanged {
 
    double mX, mY, mZ, mRx = -90, mRy, mRz;
    double mBX = 700, mBY, mBZ = 700;
+   bool   mUseFrame;
+   string mFrameStatus  = "(not calibrated)";
+   string mPalletStatus = "(no geometry)";
+   string mPickupStatus = "(not set)";
    string mScriptPath = Path.Combine (AppContext.BaseDirectory, "robot_script.txt");
    string mPlayLabel  = "Play";
+   double mWaypointPos, mWaypointMax;
 }
 #endregion
 

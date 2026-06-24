@@ -17,7 +17,7 @@ public partial class App : Application {
    public App () {
       Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
       CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
-      AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException; // (Final)Notification before dying!
+         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException; // (Final)Notification before dying!
       DispatcherUnhandledException += OnUnhandledException; // Handled/noted option...
    }
 
@@ -38,12 +38,28 @@ public partial class App : Application {
    /// <summary>This is called when there is some exception we haven't handled.</summary>
    /// We display the exception message and continue, for now.
    static void OnUnhandledException (object sender, DispatcherUnhandledExceptionEventArgs e) {
-      MessageBox.Show (App.Current.MainWindow, e.Exception.ToString (), "FApp encountered a problem (Dispatcher)", MessageBoxButton.OK);
       e.Handled = true;
+      if (sInHandler) return;
+      sInHandler = true;
+      try {
+         LogException (e.Exception, "Dispatcher");
+         MessageBox.Show (e.Exception.ToString (), "FApp encountered a problem (Dispatcher)", MessageBoxButton.OK);
+      } finally { sInHandler = false; }
    }
 
    /// <summary>Handles when there is an unhandled exception in this current domain</summary>
    static void OnDomainUnhandledException (object sender, UnhandledExceptionEventArgs e) {
-      MessageBox.Show (App.Current.MainWindow, ((Exception)e.ExceptionObject).ToString (), "FApp encountered a problem", MessageBoxButton.OK);
+      var ex = (Exception)e.ExceptionObject;
+      LogException (ex, "Domain");
+      MessageBox.Show (ex.ToString (), "FApp encountered a problem", MessageBoxButton.OK);
    }
+
+   static void LogException (Exception ex, string source) {
+      try {
+         var path = Path.Combine (AppDomain.CurrentDomain.BaseDirectory, "crash.log");
+         File.AppendAllText (path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] ({source})\n{ex}\n\n");
+      } catch { }
+   }
+
+   static bool sInHandler;
 }
