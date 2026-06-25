@@ -10,10 +10,13 @@ or robot kinematics before.
 **Start here, in this order:**
 
 1. `MainWindow.xaml` — see the window layout in XML  
-2. `MainWindow.xaml.cs` — follow `OnLuxReady()` and `OpenRobot()`  
-3. `RobotWindow.xaml` — understand what each slider/button does  
+2. `MainWindow.xaml.cs` — follow `OnLuxReady()` (creates the scene, wires the panel)  
+3. `RobotPanel.xaml` — the docked controls; understand what each slider/button does  
 4. `RobotViewModel.cs` — understand what data exists and how it flows  
 5. `RobotScene.cs` — the 3-D logic that reacts to ViewModel changes  
+
+For the cell-authoring features (import geometry, per-object frames, pick & place,
+collision, the RRT planner, save/load), read `cell-pick-place.md` after the above.
 
 Do not start with `RobotScene.cs` — it references Nori types (`Mechanism`,
 `OBBTree`, `RBRSolver`) that will make no sense until you understand what
@@ -28,7 +31,7 @@ for it in `RobotScene.cs`.
 
 ## 2. Mental model: WPF data binding
 
-In `RobotWindow.xaml`, a slider looks like this:
+In `RobotPanel.xaml`, a slider looks like this:
 
 ```xml
 <Slider Value="{Binding X, Mode=TwoWay}" .../>
@@ -55,7 +58,7 @@ public double X { get => mX; set { mX = value; Notify(); IKChanged?.Invoke(); } 
 
 This pattern — ViewModel fires `PropertyChanged`, Scene subscribes to events
 — is called **MVVM** (Model-View-ViewModel).  The key benefit: the 3-D scene
-(`RobotScene`) and the UI (`RobotWindow`) never talk to each other directly.
+(`RobotScene`) and the UI (`RobotPanel`) never talk to each other directly.
 
 **`DoubleConverter`** is the `{StaticResource dc}` in the XAML.  It converts
 between the `double` stored in the ViewModel and the `string` shown in the
@@ -110,7 +113,9 @@ You set the target:
 - X = 750 mm, Y = 0 mm, Z = 1161 mm, Rx = -90°, Ry = 0°, Rz = 0°
 
 The `RBRSolver` computes up to 8 possible sets of joint angles that can reach
-that pose.  The code picks the first valid one and applies it.
+that pose.  The code scores them (`SolutionCost`) and applies the best — the one
+that avoids joint limits and the wrist singularity and moves the least from the
+current pose.
 
 In FApp, the X/Y/Z/Rx/Ry/Rz sliders in the sidebar do IK.  Dragging one slider
 causes the solver to run and all six joint sliders to update.
@@ -141,13 +146,16 @@ Types of VNode in the robot scene:
 
 | VNode | What it draws |
 |-------|--------------|
-| `MechanismVN` | All robot link meshes (the arm itself) |
+| `MechanismVN` | All robot link meshes (the arm itself); red when colliding |
 | `XfmVN` | A transform wrapper — positions a child VNode using a matrix |
-| `Mesh3VN` | A single 3-D mesh (the obstacle box, collision triangles) |
+| `Mesh3VN` | A single 3-D mesh (obstacle box, triangles, imported objects, part) |
 | `TcpVN` | Three colored arrows + ring at the TCP position |
-| `InfoVN` | Text overlay (TCP coordinates, joint angles) in the viewport |
+| `FrameVN` | Each imported object's user-frame triad + the pickup approach arrow |
+| `InfoVN` | Text overlay (TCP coords, joint angles, ⚠ COLLISION banner) |
 | `TraceVN` | Debug text output from `Lib.Trace()` |
 | `GroupVN` | Container that holds a list of child VNodes |
+
+Imported objects live under `mGeomGroup`; the carried part under `mPartGroup`.
 
 You rarely need to write new VNodes unless you want to add new visual elements
 to the 3-D scene.
@@ -156,37 +164,44 @@ to the 3-D scene.
 
 ## 6. Mental model: the script player
 
-The script is a plain text file where each line is a waypoint:
+The script is a plain text file where each line is a waypoint, optionally with an
+action tag:
 
 ```
 750.0 0.0 1161.0 -90.0 0.0 0.0
-800.0 100.0 1200.0 -90.0 10.0 0.0
+800.0 100.0 1200.0 -90.0 10.0 0.0 PICK
+900.0 200.0 1200.0 -90.0 10.0 0.0 PLACE
 ```
 
-Each row is: `X Y Z Rx Ry Rz` (millimetres and degrees).
+Each row is: `X Y Z Rx Ry Rz [PICK|PLACE]` (mm and degrees), in **world**
+coordinates.
 
-**Load** reads the file into `mScript` (a `List<(double X,Y,Z,Rx,Ry,Rz)>`).  
-**Add** appends the current IK pose as a new line to the file.  
-**Play / Stop** toggles a `DispatcherTimer` that fires every 500 ms.
+**Load** reads the file into `mScript` (a `List<(X,Y,Z,Rx,Ry,Rz, EAction)>`).  
+**Add Waypoint** records the current pose as a new `Move` waypoint.  
+**Play / Stop** toggles a `DispatcherTimer` that fires every 40 ms.
 
-Each timer tick calls `TickScript()`, which takes the next waypoint and calls
-`ViewModel.SetIKPose(...)`.  This triggers `IKChanged`, which runs `ComputeIK()`,
-which moves the arm.
+Playback is driven by the **WP scrubber** (`ViewModel.WaypointPos`).  Each tick
+`TickScript()` advances it; `ApplyWaypointPos()` *interpolates* position and Euler
+between the two bracketing waypoints (so motion is smooth, not a jump per waypoint)
+and calls `SetIKPose(...)` → `ComputeIK()`.  On **arrival** at a waypoint its
+action fires: `PICK` attaches the part to the flange, `PLACE` releases it.  At the
+last waypoint the timer stops.
 
-When the end of the list is reached, the timer stops and the Play button reverts
-to "Play".
+The waypoint list below the scrubber shows one row per waypoint; click the action
+to cycle Move→Pick→Place, or `×` to delete.  Dragging the scrubber (or clicking a
+**WP n** row) moves the robot to that waypoint without playing.
 
 ---
 
 ## 7. Mental model: how the pieces talk to each other
 
 ```
-RobotWindow (XAML)
+RobotPanel (XAML, docked in MainWindow)
    ↕  WPF data binding (no code)
 RobotViewModel
-   ↕  C# events (IKChanged, BoxChanged, HomeRequested, ...)
+   ↕  C# events (IKChanged, BoxChanged, HomeRequested, ObjMoved, FrameEdited, ...)
 RobotScene
-   ↕  Nori API (Lux, Mechanism, RBRSolver, OBBTree, ...)
+   ↕  Nori API (Lux, Mechanism, RBRSolver, OBBTree, OBBCollider, ...)
 Nori rendering engine
 ```
 
@@ -198,8 +213,8 @@ Nori rendering engine
 - **MainWindow:** acts as a wiring layer — creates the scene and window, opens
   dialogs, handles menu clicks
 
-The only place where `RobotScene` and `RobotWindow` ever meet directly is
-`RobotWindow.SetScene(scene)`, which sets the `DataContext`.  After that, they
+The only place where `RobotScene` and `RobotPanel` ever meet directly is
+`RobotPanel.SetScene(scene)`, which sets the `DataContext`.  After that, they
 communicate entirely through the ViewModel.
 
 ---
@@ -216,9 +231,11 @@ inside `OnFK()`.  Use `SetIKDisplay` whenever you are pushing FK results into th
 IK display to avoid round-tripping.
 
 **"The arm jumps to a strange pose when I move a slider."**  
-The IK solver may have switched to a different solution branch.  The solver returns
-up to 8 solutions; the code picks the first valid one.  If the first valid solution
-changes (e.g. elbow flips), the arm jumps.
+The IK solver returns up to 8 solutions.  `SolveWorld` no longer takes the *first*
+valid one — `SolutionCost` scores them to avoid joint limits / the wrist
+singularity and to minimise travel from the current pose, which keeps the arm on a
+continuous branch.  A jump now means the target is only reachable through a very
+different configuration (or is near unreachable).
 
 **"A new VNode I added is not visible."**  
 Make sure you added it to `Root` (the `GroupVN`).  Lux only renders nodes
@@ -229,6 +246,13 @@ with alpha = 0 the geometry is invisible.
 `AddTri()` builds the `OBBTree` from the three points.  If the three points are
 collinear (all on a line) the OBB has zero volume and no collision will be
 detected.  Make sure your three points form a real triangle.
+
+**"My imported geometry / robot doesn't collide."**  
+Every collider needs an `OBBTree`.  Link OBBs are built from each link's `Mesh3`
+(not `CMesh`, which threw on this model).  An imported object whose mesh is too
+degenerate to build a tree logs a warning and won't collide.  The **part** only
+collides while *attached* (between Pick and Place), and its OBB is slightly eroded
+so resting on a surface doesn't false-trigger — see `cell-pick-place.md` §7.
 
 **"The `Mechanism` tree has the joints but `mTip.Xfm` gives wrong results."**  
 The mechanism's forward kinematics only updates when joint angles are set through

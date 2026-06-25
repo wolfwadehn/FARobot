@@ -10,6 +10,9 @@
    <DockPanel>
       <Menu DockPanel.Dock="Top" Margin="0,0,0,4" FontSize="13" Background="#C8C8D0" IsTabStop="False">
          <MenuItem Header="_File" IsTabStop="False">
+            <MenuItem Header="_Open Cell..." Click="OpenCell" IsTabStop="False"/>
+            <MenuItem Header="_Save Cell..." Click="SaveCell" IsTabStop="False"/>
+            <Separator/>
             <MenuItem Header="E_xit" Click="Exit" IsTabStop="False"/>
          </MenuItem>
          <MenuItem Header="_View" IsTabStop="False">

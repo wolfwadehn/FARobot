@@ -53,7 +53,9 @@ public partial class RobotPanel : UserControl {
    void OnPickCorner        (object sender, RoutedEventArgs e) => mScene?.BeginPickCorner ();
    void OnPickPickup        (object sender, RoutedEventArgs e) => mScene?.BeginPickPickup ();
    void OnPickPlace         (object sender, RoutedEventArgs e) => mScene?.BeginPickPlace ();
+   void OnClearPlaces       (object sender, RoutedEventArgs e) => mScene?.ClearPlaces ();
    void OnGenerateWaypoints (object sender, RoutedEventArgs e) => mScene?.GenerateWaypoints ();
+   void OnAutoAvoid         (object sender, RoutedEventArgs e) => mScene?.PlanCollisionFree ();
 
    void OnImportPart (object sender, RoutedEventArgs e) {
       if (mScene == null) return;

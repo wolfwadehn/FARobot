@@ -158,18 +158,25 @@
             <TextBox Text="{Binding ObjRz, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}"/>
          </StackPanel>
 
-         <!-- Selected object: user frame, 6 parameters (world mm / °) -->
-         <TextBlock Text="User frame (6 params)" Margin="8,6,8,2" Foreground="#8AB0E0"/>
-         <Grid Margin="6,0,6,2">
-            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-            <Grid.RowDefinitions><RowDefinition/><RowDefinition/></Grid.RowDefinitions>
-            <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding FrX, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}" Width="Auto"/>
-            <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding FrY, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}" Width="Auto"/>
-            <TextBox Grid.Row="0" Grid.Column="2" Text="{Binding FrZ, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}" Width="Auto"/>
-            <TextBox Grid.Row="1" Grid.Column="0" Text="{Binding FrRx, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}" Width="Auto"/>
-            <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding FrRy, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}" Width="Auto"/>
-            <TextBox Grid.Row="1" Grid.Column="2" Text="{Binding FrRz, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}" Width="Auto"/>
-         </Grid>
+         <!-- Selected object: user frame, 6 parameters (world mm / °).  Editing these moves
+              the pinned pallet with the frame. -->
+         <TextBlock Text="User frame (world mm / °)" Margin="8,6,8,2" Foreground="#8AB0E0"/>
+         <StackPanel Orientation="Horizontal" Margin="6,0,6,1">
+            <TextBlock Text="X"  Style="{StaticResource SliderLabel}"/>
+            <TextBox Text="{Binding FrX, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}"/>
+            <TextBlock Text="Y"  Style="{StaticResource SliderLabel}"/>
+            <TextBox Text="{Binding FrY, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}"/>
+            <TextBlock Text="Z"  Style="{StaticResource SliderLabel}"/>
+            <TextBox Text="{Binding FrZ, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}"/>
+         </StackPanel>
+         <StackPanel Orientation="Horizontal" Margin="6,0,6,2">
+            <TextBlock Text="Rx" Style="{StaticResource SliderLabel}"/>
+            <TextBox Text="{Binding FrRx, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}"/>
+            <TextBlock Text="Ry" Style="{StaticResource SliderLabel}"/>
+            <TextBox Text="{Binding FrRy, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}"/>
+            <TextBlock Text="Rz" Style="{StaticResource SliderLabel}"/>
+            <TextBox Text="{Binding FrRz, Converter={StaticResource dc}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SliderBox}"/>
+         </StackPanel>
          <StackPanel Orientation="Horizontal" Margin="2,0,2,4">
             <Button Content="Calibrate…"        Click="OnCalibrateFrame"/>
             <Button Content="Frame @ Corner"    Click="OnPickCorner"/>
@@ -182,10 +189,13 @@
          <TextBlock Text="{Binding PlaceStatus}"  Margin="8,0,8,2" Foreground="Silver" TextWrapping="Wrap"/>
          <StackPanel Orientation="Horizontal" Margin="2,0,2,2">
             <Button Content="Pick Pickup Surface" Click="OnPickPickup"/>
-            <Button Content="Pick Place Surface"  Click="OnPickPlace"/>
+            <Button Content="Add Place Dest"      Click="OnPickPlace"/>
+            <Button Content="Clear"               Click="OnClearPlaces"/>
          </StackPanel>
-         <Button Content="Generate Pick &amp; Place" HorizontalAlignment="Left"
-                 Margin="6,0,6,4" Click="OnGenerateWaypoints"/>
+         <StackPanel Orientation="Horizontal" Margin="2,0,2,4">
+            <Button Content="Generate Pick &amp; Place" Click="OnGenerateWaypoints"/>
+            <Button Content="Auto Collision-Free" Click="OnAutoAvoid"/>
+         </StackPanel>
          <TextBlock Text="{Binding PartStatus}" Margin="8,2,8,2" Foreground="Silver" TextWrapping="Wrap"/>
          <Button Content="Import Part…" HorizontalAlignment="Left" Margin="6,0,6,4" Click="OnImportPart"/>
 

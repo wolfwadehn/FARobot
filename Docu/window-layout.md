@@ -1,23 +1,25 @@
 # Window Layout
 
-FApp has one main window and one floating sidebar window (the robot controls).
-There is no status bar — it was removed when the 2D drawing editor was eliminated.
+FApp has a single main window.  The robot controls are an **embedded panel**
+(`RobotPanel`, a `UserControl`) docked on the right — there is no separate floating
+window any more.  There is no status bar (removed with the 2D drawing editor).
 
 ---
 
 ## Main window
 
 Defined in `FApp/MainWindow.xaml`.  
-The root element is a `DockPanel` that stacks three bands:
+The root element is a `DockPanel` with a menu on top, a toolbar on the left, the
+controls panel on the right, and the 3-D viewport filling the centre:
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Menu bar  (DockPanel.Dock="Top")               │
-├────┬────────────────────────────────────────────┤
-│ TB │                                            │
-│    │   3-D viewport  (mContent)                 │
-│    │                                            │
-└────┴────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  Menu bar  (DockPanel.Dock="Top")                        │
+├────┬──────────────────────────────────────┬──────────────┤
+│ TB │                                       │  RobotPanel  │
+│    │   3-D viewport  (mContent)            │  (Dock=Right │
+│    │                                       │   346 px)    │
+└────┴──────────────────────────────────────┴──────────────┘
   TB = Toolbar host (mToolbarHost, 27 px wide, Dock="Left")
 ```
 
@@ -28,9 +30,11 @@ via `Click="MethodName"` — no indirection layer.
 
 | Menu | Item | Handler | Effect |
 |------|------|---------|--------|
+| File | Open Cell… | `OpenCell()` | `mRobotScene.LoadCell()` from a `.cell` file |
+| File | Save Cell… | `SaveCell()` | `mRobotScene.SaveCell()` to a `.cell` file |
 | File | Exit | `Exit()` | `Close()` — WPF closes the window |
 | View | Zoom Extents | `ZoomExtents()` | `Lux.UIScene?.ZoomExtents()` |
-| View | Robot… | `OpenRobot()` | Open / bring-to-front the robot sidebar |
+| View | Robot Controls | `OpenRobot()` | Toggle the docked controls panel |
 | View | Robot Home | `RobotHome()` | `mRobotScene?.GoHome()` |
 | View | TCP Legend… | `TcpLegend()` | Show RGB axis legend popup |
 | — | About! | `About()` | Show version / expiry info |
@@ -50,11 +54,11 @@ adds that panel to the stack.
 
 | When added | Icon | Tooltip | Action |
 |-----------|------|---------|--------|
-| `OnLuxReady()` — always present | `⊕` | Show Robot Controls | `OpenRobot()` |
-| First call to `OpenRobot()` | `⚙` | TCP Offset | `ShowTcpOffsetDlg()` |
+| `OnLuxReady()` | `⚙` | TCP Offset | `ShowTcpOffsetDlg()` |
 
-Hover highlight is `#E4E4EC`; no selected-state highlight (the toolbar carries
-no drawing-command mode concept any more).
+(The old `⊕` "Show Robot Controls" button is gone — the panel is always present
+and toggled from **View ▸ Robot Controls**.)  Hover highlight is `#E4E4EC`; no
+selected-state highlight.
 
 ### 3-D viewport
 
@@ -70,57 +74,48 @@ The active scene (`Lux.UIScene`) is always `mRobotScene` after startup.
 
 ---
 
-## Robot sidebar (`RobotWindow`)
+## Robot controls panel (`RobotPanel`)
 
-Defined in `FApp/RobotWindow.xaml`.  
-It is a separate floating `Window` (not docked), positioned at the right edge of
-the work area:
-
-```csharp
-mRobotWin.Left = wa.Right - mRobotWin.Width - 10;
-mRobotWin.Top  = wa.Top;
-```
+Defined in `FApp/RobotPanel.xaml`.  
+It is a `UserControl` docked on the right of the main window (`DockPanel.Dock="Right"`,
+346 px) — no longer a floating window.  **View ▸ Robot Controls** toggles its
+visibility.
 
 **Visual identity:** dark theme (`#252530` background, `#E8E8F0` text).  
-**Width:** fixed 320 px; height adjusts to content (max 800 px with scroll).
-
-The `DataContext` is `RobotScene.ViewModel` (a `RobotViewModel` instance), so all
-sliders and textboxes update automatically through WPF data binding.
+The `DataContext` is `RobotScene.ViewModel`, set via `mRobotPanel.SetScene(scene)`
+in `OnLuxReady`, so all sliders and textboxes update through WPF data binding.
 
 ### Layout (top to bottom inside a `ScrollViewer`)
 
 ```
-Forward Kinematics
-  [S] ──────●────  -180.0
-  [L] ────●──────   -45.2
-  [U] ──────────●  +120.0
-  [R] ──────────●   ...
-  [B] ...
-  [T] ...
+Forward Kinematics       S/L/U/R/B/T sliders
 
-Inverse Kinematics
-  [Home Position]
-  X  ──────●────   750.0
-  Y  ──────●────     0.0
-  Z  ──────●────  1161.0
-  Rx ──────●────   -90.0
-  Ry ──────●────     0.0
-  Rz ──────●────     0.0
+Inverse Kinematics       [Home Position] [Set Home]
+                         X Y Z Rx Ry Rz sliders
 
-Obstacle
-  BX ──────●────   700.0
-  BY ──────●────     0.0
-  BZ ──────●────   700.0
+Geometry & Objects       [Import Geometry…]
+                         (object combo)
+                         Move:   X Y Z Rx Ry Rz   (selected object, 6 DOF)
+                         Frame:  X Y Z Rx Ry Rz   (6 params)
+                         [Calibrate…] [Frame @ Corner] [Clear]
 
-Script
-  [path/to/robot_script.txt          ]
-  [Load]  [Add]  [Play]
+Pick & Place             [Pick Pickup Surface] [Pick Place Surface]
+                         [Generate Pick & Place] [Auto Collision-Free]
+                         [Import Part…]
 
-Collision Triangles
-  [Add Triangle…]
-  WorkpieceTop  Group1  [×]
-  TableEdge     Group1  [×]
+Obstacle                 BX BY BZ sliders
+
+Script                   [robot_script.txt]
+                         [Load] [Add Waypoint] [Play]
+                         WP ─────●──── 0.0     (scrubber, tick per waypoint)
+                         WP 1  [Move]  [×]      (one row per waypoint;
+                         WP 2  [Pick]  [×]       action cycles Move→Pick→Place)
+
+Collision Triangles      [Add Triangle…]  + list
 ```
+
+The Geometry/Frame/Pick&Place/waypoint sections are documented in detail in
+`cell-pick-place.md`.
 
 Each slider row is a `StackPanel` containing:
 - A label `TextBlock` (22 px wide, right-aligned)
@@ -142,8 +137,14 @@ OK validates all three fields; Cancel discards.
 
 ### Add Triangle dialog (`TriangleDialog.xaml`)
 
-Opens from the "Add Triangle…" button in the robot sidebar.  
+Opens from the "Add Triangle…" button in the controls panel.  
 Fields: Name, Group, P1(X/Y/Z), P2(X/Y/Z), P3(X/Y/Z).  
 Import/Export buttons read/write a CSV file.
+
+### Pallet Frame dialog (`PalletFrameDialog.xaml`)
+
+Opens from **Calibrate…** in the Geometry & Objects section.  
+Fields: P1 (origin), P2 (+X), P3 (+XY).  Import/Export read/write CSV.  Computes
+the selected object's 6-parameter user frame; rejects collinear points.
 
 ---

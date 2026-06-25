@@ -20,47 +20,40 @@ WPFHost.Init() (Nori internal) ────────────────�
 
 OnLuxReady() ───────────────────────────────────────────────────────
   new SceneManipulator()    ← wires mouse pan / orbit / zoom to Lux
-  toolbar.AddButton("⊕")   ← "Show Robot Controls" button appears
-  OpenRobot()
-
-OpenRobot() ────────────────────────────────────────────────────────
-  new RobotScene()
+  mRobotScene = new RobotScene()
     Mechanism.Load("N:/Wad/FanucX/mechanism.curl")
     mTip    = FindChild("Tip")
     mJoints = FindChild("S","L","U","R","B","T")
     new RBRSolver(arm dimensions, joint limits)
     Lib.Tessellate = FastTess2D.Process
     Build box mesh + OBBTree
+    Build per-link OBBTrees from each link's Mesh3 (for collision)
     new RobotViewModel()
-    Build per-link OBBTrees (for collision)
-    Wire ViewModel events → ComputeIK / UpdateBox / GoHome / ...
-    ViewModel.SetIKPose(home position)  ──→ triggers first IK solve
-    Start DispatcherTimer (script playback, disabled)
-    BgrdColor = Gray(64)
-    Bound = (-1200,-1200,0, 1200,1200,1500)
-    Root = GroupVN([MechanismVN, gripper XfmVN, box XfmVN,
-                   tri group, TcpVN, InfoVN, TraceVN])
+    Wire ViewModel events → ComputeIK / UpdateBox / GoHome /
+                            SelectedObjectChanged / ObjMoved / FrameEdited / ...
+    GoHome()                            ──→ triggers first IK solve
+    Start DispatcherTimer (40 ms, script playback, disabled)
+    BgrdColor = Gray(64);  Bound = (-1200,-1200,0, 1200,1200,1500)
+    Root = GroupVN([MechanismVN, gripper, box, triGroup, geomGroup,
+                   partGroup, TcpVN, FrameVN, InfoVN, TraceVN])
 
   Lux.UIScene = mRobotScene        ← 3-D scene goes live
-  new RobotWindow()
-  Position window at right edge of work area
-  mRobotWin.Show()
-  mRobotWin.SetScene(mRobotScene)  ← DataContext = ViewModel
+  mRobotPanel.SetScene(mRobotScene)← DataContext = ViewModel (panel already docked)
   toolbar.AddButton("⚙")           ← TCP Offset button appears
 ```
 
-The first `ComputeIK()` call (triggered by `SetIKPose`) runs the analytic solver
-and sets the six joint angles to the home position, so the arm appears posed
-correctly the moment the window opens.
+The first `GoHome()` (→ `SetIKPose` → `ComputeIK`) runs the analytic solver and
+poses the arm at the home position the moment the window opens.  **View ▸ Robot
+Controls** later just toggles `mRobotPanel.Visibility`.
 
 ---
 
 ## 2. Forward kinematics slider sequence
 
-The user drags a joint slider (e.g. the **B** joint) in the robot sidebar.
+The user drags a joint slider (e.g. the **B** joint) in the controls panel.
 
 ```
-RobotWindow.xaml  Slider.Value changes
+RobotPanel.xaml  Slider.Value changes
   │  (two-way binding)
   ▼
 JointSliderModel.Value setter
@@ -77,23 +70,29 @@ RobotScene.OnFK()
                                              does NOT fire IKChanged
   foreach joint → js.Refresh()            ← pushes updated angles to FK sliders
   mGripper.Xfm = mTip.Xfm                ← moves gripper VNode
+  UpdateAttachedPart()                   ← if a part is held, it follows the flange
   CheckCollisions()
 
   ▼
-CheckCollisions()
+CheckCollisions()                         ← robot collision is ALWAYS on
   For each (linkMesh, linkOBB):
     wLink = linkOBB.With(m.Xfm)         ← link in world space
     linkHit |= Collider.Check(wLink, boxOBBW)
-    for each collision triangle:
-      groupHit[tri.Group] |= Collider.Check(wLink, tri.OBB)
+    for each collision triangle:  groupHit[tri.Group] |= Check(wLink, tri.OBB)
+    for each imported object:      objHit[k]          |= Check(wLink, obj.OBB.With(obj.Xfm))
     m.IsColliding = linkHit             ← link turns red in scene
-  mBoxVN.Color = boxHit ? Red : Blue
-  tri.IsColliding = groupHit[tri.Group] ← whole group turns red together
+  if part attached:                       ← part only collides while held
+    for box + each object:  partHit |= Check(partOBB.With(partXfm), …)
+  recolour box / triangles / objects / part;  InCollision drives the ⚠ banner
 ```
 
-**Key insight:** `SetIKDisplay` updates the IK sliders to reflect the new TCP
-position after a joint drag, but it does *not* call `ComputeIK()`, so there is
-no round-trip IK → FK → IK loop.
+**Key insights:**
+- `SetIKDisplay` updates the IK sliders to reflect the new TCP position after a
+  joint drag but does *not* call `ComputeIK()`, so there is no IK→FK→IK loop.
+- Link collision OBBs are built from each link's **`Mesh3`** (the `CMesh`/TopoMesh
+  path threw and left the robot with no collision geometry).
+- The held part's collision OBB is slightly **eroded** so resting on a surface
+  doesn't false-trigger; the part participates only between Pick and Place.
 
 ---
 
@@ -102,9 +101,9 @@ no round-trip IK → FK → IK loop.
 ### 3a. Add triangle
 
 ```
-User clicks "Add Triangle…" in sidebar
+User clicks "Add Triangle…" in the controls panel
   ▼
-RobotWindow.OnAddTriangle()
+RobotPanel.OnAddTriangle()
   new TriangleDialog()
   dlg.ShowDialog()        ← modal; user fills Name, Group, P1/P2/P3
 
@@ -185,3 +184,52 @@ This means: if *any* triangle in a group is hit, *all* triangles in that group
 turn red simultaneously.  This is intentional — it lets you mark a conceptual
 object (e.g. "workpiece") with multiple triangles and see the whole object react
 as a unit.
+
+---
+
+## 4. Pick-and-place playback sequence
+
+```
+User presses Play
+  ▼
+RobotScene.TogglePlay()
+  ResetPart()                  ← drop part to its rest pose; mFiredUpto = 0
+  ViewModel.WaypointPos = 0;  mPlayTimer.IsEnabled = true
+
+mPlayTimer tick (every 40 ms) → TickScript()
+  WaypointPos += PlayStep      ← advances the scrubber toward the last waypoint
+    ▼ (WaypointScrubbed)
+  ApplyWaypointPos()           ← interpolates pos+Euler between bracketing waypoints
+    → ViewModel.SetIKPose(...) → ComputeIK() → arm moves, UpdateAttachedPart(),
+                                              CheckCollisions()
+  FireActionsUpto(floor(pos))  ← on ARRIVAL at a waypoint, run its action:
+                                   Pick  → AttachPart()  (part fixes to flange)
+                                   Place → PlacePart()   (part released in place)
+  at the last index → stop, Play label resets
+```
+
+The part is grabbed/released exactly when the robot *reaches* the Pick/Place
+waypoint (arrival), and rides the flange in between.
+
+---
+
+## 5. Collision-free re-route sequence
+
+```
+User presses Auto Collision-Free → RobotScene.PlanCollisionFree()
+  ComputeGraspRel()            ← capture part-vs-flange grasp at the pickup
+  SaveJoints()
+  for each consecutive waypoint pair (a → b):
+     carrying = state after a's action (Pick → true, Place → false)
+     via = Rrt(a, b, carrying)            ← straight test; else goal-biased RRT
+        PoseFree(p, carrying)             ← SolveWorld(p) && !HasCollision(carrying)
+        SegmentFree(a,b,carrying)         ← sample every ~25 mm
+        Shortcut(path, carrying)          ← drop redundant via-points
+     insert via-points as Move waypoints; keep b (with its action)
+  RestoreJoints()
+  SaveScript(); AfterScriptChanged()      ← list + scrubber refresh
+```
+
+`PoseFree` temporarily solves IK and restores the joints, so the displayed pose is
+unchanged after planning.  See `cell-pick-place.md` §8 for the full planner and the
+rationale for using RRT rather than reinforcement learning.

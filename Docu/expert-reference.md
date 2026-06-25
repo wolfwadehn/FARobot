@@ -19,8 +19,13 @@ Scene3 (Nori)
     ├── mBoxXfm: XfmVN              applies BoxWorldXfm; child is mBoxVN
     │   └── mBoxVN: Mesh3VN         the blue/red 200×200×200 mm obstacle cube
     ├── mTriGroup: GroupVN          collision triangles (Mesh3VN added dynamically)
+    ├── mGeomGroup: GroupVN         imported objects (each SceneObject.Node = XfmVN)
+    │                               + the orange pickup-face highlight
+    ├── mPartGroup: GroupVN         the carried part (XfmVN around its Mesh3VN)
     ├── TcpVN                       streaming; draws TCP axes + ring
-    ├── InfoVN                      streaming; draws text overlay (pose + angles)
+    ├── FrameVN                     streaming; draws each object's user-frame triad
+    │                               + the magenta pickup approach arrow
+    ├── InfoVN                      streaming; pose + joint text + ⚠ COLLISION banner
     └── TraceVN                     Nori singleton; output from Lib.Trace()
 ```
 
@@ -46,22 +51,32 @@ the change automatically.
 - Scroll wheel → zoom
 - Left-click on a mesh → `scene.Picked(obj)`
 
-**Pick callback:** `RobotScene.Picked(object obj)` — `RobotScene.cs ~line 81`
+**Pick callback:** `RobotScene.Picked(object obj)`
 
-Nori resolves which drawable object (mesh) was clicked and passes it as `obj`.
-FApp checks:
+Nori resolves which drawable mesh was clicked and passes it as `obj`; `Lux.PickPos`
+is the 3-D hit point.  Clicks drive the teach modes (`mPickMode`): the frame corner
+and place point are taught on an imported object, the pickup on the part or an
+object.  Outside a teach mode, the box/triangles still snap the TCP pose.
 
 ```csharp
 public override void Picked(object obj) {
-    if (obj == mBoxMesh)          { SnapToFace(Lux.PickPos); return; }
+    var hitObj  = mObjects.FirstOrDefault(o => o.Mesh == obj);
+    bool onPart = mPartMesh != null && obj == mPartMesh;
+    if (mPickMode == EPickMode.Corner && hitObj != null) { SetFrameFromCorner(...); return; }
+    if (mPickMode == EPickMode.Pickup && (onPart || hitObj != null)) { SetPickup(...); return; }
+    if (mPickMode == EPickMode.Place  && hitObj != null) { SetPlace(...); return; }
+    if (hitObj != null || onPart) return;                  // geometry, no teach mode
+    if (obj == mBoxMesh)     { SnapToFace(Lux.PickPos); return; }
     foreach (var tri in mTris)
-        if (obj == tri.Mesh)      { SnapToTriNode(tri.P1, tri.Normal); return; }
+        if (obj == tri.Mesh) { SnapToTriNode(tri.P1, tri.Normal); return; }
 }
 ```
 
+See `cell-pick-place.md` §3–§5 for the object/frame/pick-place model.
+
 `Lux.PickPos` is the 3-D world position of the click on the mesh surface.
 
-No mouse input is handled in `MainWindow.xaml.cs` or `RobotWindow.xaml.cs`.
+No mouse input is handled in `MainWindow.xaml.cs` or `RobotPanel.xaml.cs`.
 All 3-D interaction goes through `Picked()`.
 
 ---
@@ -95,9 +110,11 @@ for (int i = 0; i < 6; i++) {
 The limits are then passed to `RBRSolver` so it rejects solutions that would
 violate joint limits.
 
-Each node also carries one or more mesh objects (`m.Mesh`, `m.CMesh`) used for
-rendering and collision.  `m.CMesh` is a simplified collision mesh; `m.Mesh` is
-the full visual mesh.
+Each node also carries one or more mesh objects (`m.Mesh`, `m.CMesh`).  `m.Mesh`
+is the full visual mesh; `m.CMesh` is a simplified collision mesh.  **FApp builds
+each link's collision `OBBTree` from `m.Mesh`**, not `m.CMesh`: `OBBTree.From` on
+this model's `CMesh` (a `TopoMesh`) threw and was being swallowed, leaving the
+robot with no collision geometry at all.
 
 ---
 
@@ -184,6 +201,7 @@ void OnFK() {
     ViewModel.SetIKDisplay(tcp.X, tcp.Y, tcp.Z + LJointZ, rx, ry, rz);
     foreach (var js in ViewModel.Joints) js.Refresh(); // push new angles to sliders
     mGripper.Xfm = mTip.Xfm;
+    UpdateAttachedPart();                              // held part follows the flange
     CheckCollisions();
 }
 ```
@@ -212,50 +230,52 @@ This is the inverse of the construction used in `ComputeIK()`:
 **Trigger:** user moves an IK slider → `ViewModel.X` (or Y/Z/Rx/Ry/Rz) setter
 → `IKChanged?.Invoke()` → `ComputeIK()`
 
-**`RobotScene.ComputeIK()`** (`RobotScene.cs ~line 121`):
+`ComputeIK` builds the world TCP pose from the ViewModel values
+(`CurrentWorldPose`, world coordinates) and delegates to `SolveWorld`, which is
+also used by the planner:
 
 ```csharp
 void ComputeIK() {
-    // Step 1: build TCP orientation from Euler angles (X-then-Y convention)
-    var cs  = CoordSystem.World;
-    cs     *= Matrix3.Rotation(EAxis.X, ViewModel.Rx.D2R());
-    cs     *= Matrix3.Rotation(EAxis.Y, ViewModel.Ry.D2R());
-    cs     *= Matrix3.Rotation(EAxis.Z, ViewModel.Rz.D2R());
-
-    // Step 2: work in the L-joint frame (subtract 565 mm from world Z)
-    var tcp = new Vector3(ViewModel.X, ViewModel.Y, ViewModel.Z - LJointZ);
-
-    // Step 3: back-solve wrist from TCP (subtract TCP offset in wrist frame)
-    var wrist = tcp - cs.VecX * mTcpOffset.X
-                    - cs.VecY * mTcpOffset.Y
-                    - cs.VecZ * mTcpOffset.Z;
-    mCS = cs * Matrix3.Translation(wrist);
-
-    // Step 4: analytic solver — up to 8 solutions
-    mSolver.ComputeStances(mCS.Org, mCS.VecZ, mCS.VecX);
-
-    // Step 5: apply first valid solution
-    for (int j = 0; j < 8; j++) {
-        var a = mSolver.Solutions[j];
-        if (!a.OK) continue;
-        for (int i = 0; i < 6; i++)
-            mJoints[i].JValue = a.GetJointAngle(i);
-        break;
-    }
+    SolveWorld(CurrentWorldPose());
     mGripper.Xfm = mTip.Xfm;
+    UpdateAttachedPart();      // a held part follows the flange
     CheckCollisions();
+}
+
+bool SolveWorld(CoordSystem world) {
+    var pose  = world + new Vector3(0, 0, -LJointZ);   // solver works in L-joint frame
+    var wrist = pose.Org - pose.VecX*off.X - pose.VecY*off.Y - pose.VecZ*off.Z; // back-solve
+    mCS = new CoordSystem(wrist, pose.VecX, pose.VecY);
+    mSolver.ComputeStances(mCS.Org, mCS.VecZ, mCS.VecX);   // up to 8 solutions
+    int best = -1; double bestCost = double.MaxValue;
+    for (int j = 0; j < 8; j++) {
+        if (!mSolver.Solutions[j].OK) continue;
+        double cost = SolutionCost(j);                     // pick the BEST, not the first
+        if (cost < bestCost) { bestCost = cost; best = j; }
+    }
+    if (best < 0) return false;                            // unreachable
+    for (int i = 0; i < 6; i++) mJoints[i].JValue = mSolver.Solutions[best].GetJointAngle(i);
+    return true;
 }
 ```
 
-`RBRSolver` is a Nori closed-form 6-DOF solver.  It is initialised with the
-arm's Denavit-Hartenberg parameters:
+**Solution selection (`SolutionCost`).**  Among the valid solutions, FApp does
+**not** take the first — it scores each with a dominant penalty for nearing any
+joint limit or the wrist singularity (B ≈ 0°), plus least joint travel from the
+current pose.  This keeps the arm on a continuous branch and avoids the wrist
+flipping to a limit mid-move (the old "first valid solution" caused exactly that).
+
+`RBRSolver` is a Nori closed-form 6-DOF solver, initialised with the arm's
+Denavit-Hartenberg parameters; solutions violating joint limits are `OK = false`:
 
 ```csharp
 // (a1, a2, a3, d1, d4, d6)  — link lengths and offsets in mm
 new RBRSolver(150, 770, 0, 0, 1016, 175, mMin, mMax)
 ```
 
-Solutions that violate joint limits are flagged `OK = false` and skipped.
+**IK is in world coordinates.**  The previous "pallet frame" toggle was removed;
+per-object user frames are now used only to *report* pickup/place coordinates and
+to place the part (see `cell-pick-place.md`).  Generated waypoints are world poses.
 
 ---
 
@@ -345,8 +365,11 @@ VecZ axis equals `normal`.  Rz is always set to 0.
 
 ## Robot control UI structure
 
-**`RobotWindow.xaml`** is a `ScrollViewer` containing a single `StackPanel`
-with five sections:
+**`RobotPanel.xaml`** (a docked `UserControl`) is a `ScrollViewer` containing a
+single `StackPanel`.  Beyond FK/IK it adds **Geometry & Objects** (import, object
+combo, 6-DOF move, 6-param frame, calibrate), **Pick & Place** (teach pickup/place,
+generate cycle, auto collision-free, import part), and a **waypoint list** — all
+documented in `cell-pick-place.md`.  The original sections:
 
 ### 1. Forward Kinematics — `ItemsControl` bound to `ViewModel.Joints`
 
@@ -369,9 +392,12 @@ Slider binds to `ViewModel.BX` etc., setter fires `BoxChanged` → `UpdateBox()`
 
 ### 4. Script
 
-`LoadCommand` → reads file into `mScript` list.  
-`AddCommand` → appends current IK pose as a line to the script file.  
-`PlayCommand` → toggles `mPlayTimer`; each tick calls `TickScript()`.
+`LoadCommand` → reads file into `mScript` (waypoints with a Move/Pick/Place action).  
+`AddCommand` → `AddWaypoint()` records the current pose as a Move waypoint.  
+`PlayCommand` → toggles `mPlayTimer` (40 ms); each tick `TickScript()` advances the
+`WaypointPos` scrubber, interpolating between waypoints and firing Pick/Place
+actions on arrival.  The waypoint list (`ViewModel.Waypoints`) shows one row per
+waypoint with an action toggle and remove button.
 
 ### 5. Collision Triangles
 
@@ -408,3 +434,21 @@ mGripper.Xfm = mTip.Xfm;   // gripper follows the tip frame
 To add a tool mesh, replace the inner `GroupVN([])` with a `Mesh3VN` built from
 the tool's geometry, or add child nodes to the `GroupVN`.  The `XfmVN` will
 automatically position and orient the child at the tip frame.
+
+---
+
+## Objects, frames, collision, planning & cell I/O
+
+These subsystems are documented in full in **`cell-pick-place.md`**.  Quick code
+map (all in `RobotScene.cs`):
+
+| Concern | Methods |
+|---------|---------|
+| Imported geometry | `ImportGeometry`, `LoadMesh`, `SceneObject` (path, `Xfm`, `Frame`, `OBB`) |
+| Object move / select | `OnSelectObject`, `OnObjMoved`, `OnFrameEdited` |
+| User frames | `SetPalletFrame`, `SetFrameFromCorner`, `BuildFrame`, `ClearPalletFrame` |
+| Pick / place + part | `SetPickup`, `SetPlace`, `ImportPart`, `AttachPart`, `PlacePart`, `BuildPartOBB` |
+| Waypoints | `AddWaypoint`, `CycleAction`, `ApplyWaypointPos`, `TickScript`, `GenerateWaypoints` |
+| Collision | `CheckCollisions` (always-on; part only when attached), `HasCollision`, `InCollision` |
+| Planner (RRT) | `PlanCollisionFree`, `PoseFree`, `SegmentFree`, `Rrt`, `Shortcut`, `SolveWorld` |
+| Cell I/O | `SaveCell`, `LoadCell` (JSON via `CellDto`/`ObjDto`/`PartDto`/`WpDto`) |

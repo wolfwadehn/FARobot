@@ -27,6 +27,18 @@ public partial class MainWindow : Window {
          tb.AddButton ("⚙", "TCP Offset", ShowTcpOffsetDlg);
    }
 
+   void OpenCell (object s, RoutedEventArgs e) {
+      if (mRobotScene == null) return;
+      var ofd = new Microsoft.Win32.OpenFileDialog { Filter = "Cell files|*.cell;*.json|All files|*.*", Title = "Open Cell" };
+      if (ofd.ShowDialog () is true) mRobotScene.LoadCell (ofd.FileName);
+   }
+
+   void SaveCell (object s, RoutedEventArgs e) {
+      if (mRobotScene == null) return;
+      var sfd = new Microsoft.Win32.SaveFileDialog { Filter = "Cell files|*.cell|JSON|*.json", Title = "Save Cell", FileName = "cell.cell" };
+      if (sfd.ShowDialog () is true) mRobotScene.SaveCell (sfd.FileName);
+   }
+
    void Exit      (object s, RoutedEventArgs e) => Close ();
    void ZoomExtents (object s, RoutedEventArgs e) => Lux.UIScene?.ZoomExtents ();
    void RobotHome (object s, RoutedEventArgs e) => mRobotScene?.GoHome ();

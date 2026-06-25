@@ -2,6 +2,7 @@
 // ║╬╠╬╦╗ RobotScene.cs
 // ║╔╣╠║╣ 3D robot scene with FK/IK solver and box collision detection
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
+using System.Text.Json;
 using System.Windows.Threading;
 namespace FApp;
 
@@ -159,30 +160,32 @@ class RobotScene : Scene3 {
    //         so interpolated motion takes the short joint path instead of flipping the
    //         wrist to a limit.
    void ComputeIK () {
-      // World TCP pose for the current ViewModel values, then drop world Z by LJointZ
-      // since the solver works relative to the L-joint plane.
-      var pose  = CurrentWorldPose ();
-      pose     += new Vector3 (0, 0, -LJointZ);
-      // Back-solve wrist = TCP − R × TCP_offset, then hand the wrist pose to the solver.
+      SolveWorld (CurrentWorldPose ());
+      mGripper.Xfm = mTip.Xfm;
+      UpdateAttachedPart ();
+      CheckCollisions ();
+   }
+
+   // Solves IK for a world TCP pose and applies the best solution to the joints.  Returns
+   // false (joints unchanged) if the pose is unreachable.  Used by ComputeIK and the planner.
+   //   - Subtract LJointZ (solver works in the L-joint frame, not world Z).
+   //   - Back-solve wrist = TCP − R × TCP_offset and feed the analytic solver.
+   //   - Pick the solution that avoids joint limits/singularity and is nearest current joints.
+   bool SolveWorld (CoordSystem world) {
+      var pose  = world + new Vector3 (0, 0, -LJointZ);
       var wrist = pose.Org - pose.VecX * mTcpOffset.X - pose.VecY * mTcpOffset.Y - pose.VecZ * mTcpOffset.Z;
       mCS = new CoordSystem (wrist, pose.VecX, pose.VecY);
       mSolver.ComputeStances (mCS.Org, mCS.VecZ, mCS.VecX);
-      // Score every valid solution: strongly avoid joint limits and the wrist singularity
-      // (B≈0), then prefer the one nearest the current pose (least travel) so the arm
-      // moves smoothly without locking the wrist.
       int best = -1; double bestCost = double.MaxValue;
       for (int j = 0; j < 8; j++) {
          if (!mSolver.Solutions[j].OK) continue;
          double cost = SolutionCost (j);
          if (cost < bestCost) { bestCost = cost; best = j; }
       }
-      if (best >= 0) {
-         var sol = mSolver.Solutions[best];
-         for (int i = 0; i < 6; i++) mJoints[i].JValue = sol.GetJointAngle (i);
-      }
-      mGripper.Xfm = mTip.Xfm;
-      UpdateAttachedPart ();
-      CheckCollisions ();
+      if (best < 0) return false;
+      var sol = mSolver.Solutions[best];
+      for (int i = 0; i < 6; i++) mJoints[i].JValue = sol.GetJointAngle (i);
+      return true;
    }
 
    // Cost of an IK solution = limit/singularity penalty (dominant) + travel from the
@@ -232,18 +235,20 @@ class RobotScene : Scene3 {
       CheckCollisions ();
    }
 
-   // Extracts XYZ Euler angles (degrees) from a coordinate system.
-   // Inverse of: cs *= Rot(X,Rx) * Rot(Y,Ry) * Rot(Z,Rz) used in ComputeIK.
+   // Extracts XYZ Euler angles (degrees) from a coordinate system — the exact inverse of
+   // cs = Rot(X,Rx) * Rot(Y,Ry) * Rot(Z,Rz) (this lib's row-vector rotations), so it is
+   // correct for COMBINED rotations, not just a single axis.  For that build:
+   //   VecX = ( cosRy·cosRz,  cosRy·sinRz, −sinRy )
+   //   VecY.Z = sinRx·cosRy,   VecZ.Z = cosRx·cosRy
    static (double Rx, double Ry, double Rz) MatrixToEuler (CoordSystem cs) {
-      double ry    = Math.Asin (Math.Clamp (cs.VecZ.X, -1, 1));
-      double cosRy = Math.Cos (ry);
+      double ry = Math.Asin (Math.Clamp (-cs.VecX.Z, -1, 1));
       double rx, rz;
-      if (Math.Abs (cosRy) > 1e-6) {
-         rx = Math.Atan2 (-cs.VecZ.Y, cs.VecZ.Z);
-         rz = Math.Atan2 (-cs.VecY.X, cs.VecX.X);
-      } else {
-         rx = Math.Atan2 (cs.VecX.Y, cs.VecY.Y);
+      if (Math.Abs (cs.VecX.Z) < 1 - 1e-6) {
+         rz = Math.Atan2 (cs.VecX.Y, cs.VecX.X);
+         rx = Math.Atan2 (cs.VecY.Z, cs.VecZ.Z);
+      } else {                       // gimbal lock (Ry = ±90°): fix Rz = 0
          rz = 0;
+         rx = Math.Atan2 (cs.VecY.X, cs.VecY.Y);
       }
       const double R2D = 180 / Math.PI;
       return (rx * R2D, ry * R2D, rz * R2D);
@@ -268,12 +273,8 @@ class RobotScene : Scene3 {
       foreach (var tri in mTris) groupHit.TryAdd (tri.Group, false);
       bool[] objHit = new bool[mObjects.Count];
 
-      // World-space part OBB (null if no part); held vs resting decides who it tests against.
-      OBBTree? partW = mHasPart && mPartOBB != null && mPartXfmVN != null
-                       ? mPartOBB.With (mPartXfmVN.Xfm) : null;
-
-      // Robot links vs the obstacle box, collision triangles, imported objects, and the
-      // resting part (the held part is excluded here — the gripper is meant to hold it).
+      // Robot links vs the obstacle box, collision triangles, and imported objects.
+      // (The part is NOT an obstacle here — it only collides once attached, below.)
       foreach (var (m, linkOBB) in mLinkOBBs) {
          var wLink    = linkOBB.With (m.Xfm);
          bool linkHit = bc.Check (wLink, boxOBBW);
@@ -284,12 +285,14 @@ class RobotScene : Scene3 {
             if (mObjects[k].OBB is { } oobb && bc.Check (wLink, oobb.With (mObjects[k].Xfm))) {
                linkHit = true; objHit[k] = true;
             }
-         if (partW != null && !mPartAttached && bc.Check (wLink, partW)) { linkHit = true; partHit = true; }
          m.IsColliding = linkHit;
       }
 
-      // The carried part (once picked up) vs the box and every imported object.
-      if (partW != null && mPartAttached) {
+      // The carried part (only once picked up) vs the box and every imported object.  Its
+      // collision OBB is eroded slightly (see BuildPartOBB) so resting/contact with a pallet
+      // surface doesn't false-trigger.
+      if (mHasPart && mPartAttached && mPartOBB != null && mPartXfmVN != null) {
+         var partW = mPartOBB.With (mPartXfmVN.Xfm);
          if (bc.Check (partW, boxOBBW)) { partHit = boxHit = true; }
          for (int k = 0; k < mObjects.Count; k++)
             if (mObjects[k].OBB is { } oobb && bc.Check (partW, oobb.With (mObjects[k].Xfm))) {
@@ -314,6 +317,29 @@ class RobotScene : Scene3 {
 
    // Highlight colour for the currently selected (movable) object.
    static readonly Color4 SelObjColor = new (90, 170, 230);
+
+   // Side-effect-free collision query used by the planner (no colour changes): robot links
+   // vs box, triangles and imported objects; plus the carried part (positioned at the
+   // planning grasp on the flange) vs box and objects.
+   bool HasCollision (bool carrying) {
+      using var bc = OBBCollider.Borrow ();
+      var boxW = mBoxOBB.With (BoxWorldXfm);
+      foreach (var (m, linkOBB) in mLinkOBBs) {
+         var wLink = linkOBB.With (m.Xfm);
+         if (bc.Check (wLink, boxW)) return true;
+         foreach (var tri in mTris) if (bc.Check (wLink, tri.OBB.With (Matrix3.Identity))) return true;
+         for (int k = 0; k < mObjects.Count; k++)
+            if (mObjects[k].OBB is { } o && bc.Check (wLink, o.With (mObjects[k].Xfm))) return true;
+      }
+      if (carrying && mPartOBB != null) {
+         var pw = mPartOBB.With (mPlanGraspRel * mTip.Xfm);
+         if (bc.Check (pw, boxW)) return true;
+         for (int k = 0; k < mObjects.Count; k++)
+            if (mObjects[k].OBB is { } o && bc.Check (pw, o.With (mObjects[k].Xfm))) return true;
+      }
+      return false;
+   }
+   Matrix3 mPlanGraspRel = Matrix3.Identity;   // part pose relative to the flange while carried
 
    // Records the robot's current pose as a new Move waypoint (the action can be changed
    // afterward from the waypoint list).
@@ -479,27 +505,42 @@ class RobotScene : Scene3 {
       Lux.Redraw ();
    }
 
-   // Panel move fields edited: apply to the selected object and refresh collisions.
+   // Panel move fields edited: apply to the selected object.  If the object is pinned to
+   // its user frame, the frame rides along with it.
    void OnObjMoved () {
       if (Sel is not { } o) return;
       (o.X, o.Y, o.Z, o.Rx, o.Ry, o.Rz) =
          (ViewModel.ObjX, ViewModel.ObjY, ViewModel.ObjZ, ViewModel.ObjRx, ViewModel.ObjRy, ViewModel.ObjRz);
       o.ApplyPlacement ();
+      if (o.FramePinned) {                                  // frame follows the object
+         SetFrameFromMatrix (o, o.FrameRel * o.Xfm);
+         ViewModel.SetObjFrame (o.FX, o.FY, o.FZ, o.FRx, o.FRy, o.FRz);
+      }
+      UpdatePartRest ();                                    // sheet rides the pallet
       CheckCollisions ();
       Lux.Redraw ();
    }
 
-   // Panel frame fields edited: apply the 6 parameters to the selected object's frame.
+   // Panel frame fields edited: apply the 6 parameters to the selected object's frame.  If
+   // the object is pinned to the frame, the object (pallet) moves rigidly with the frame —
+   // translation AND rotation.  The first edit (before any calibration) just pins the
+   // current relationship without moving the object.
    void OnFrameEdited () {
       if (Sel is not { } o) return;
       (o.FX, o.FY, o.FZ, o.FRx, o.FRy, o.FRz) =
          (ViewModel.FrX, ViewModel.FrY, ViewModel.FrZ, ViewModel.FrRx, ViewModel.FrRy, ViewModel.FrRz);
       o.HasFrame = true;
+      if (o.FramePinned) {                                  // object follows the frame
+         SetPlacementFromMatrix (o, o.FrameRel.GetInverse () * o.FrameXfm);
+         ViewModel.SetObjMove (o.X, o.Y, o.Z, o.Rx, o.Ry, o.Rz);
+         CheckCollisions ();
+      } else o.PinFrame ();                                 // establish the rigid link
+      UpdatePartRest ();                                    // sheet rides the pallet
       Lux.Redraw ();
    }
 
-   // Applies a 3-point calibration to the selected object's frame and reflects the computed
-   // 6 parameters back into the panel.  (P1=origin, P2 sets +X, P3 on the +XY side.)
+   // Applies a 3-point calibration to the selected object's frame, pins the object to it,
+   // and reflects the computed 6 parameters back into the panel.
    internal void SetPalletFrame (Point3 origin, Point3 xptr, Point3 plane) {
       if (Sel is not { } o) { Lib.Trace ("Select an object first"); return; }
       var cs = BuildFrame (origin, xptr, plane);
@@ -507,16 +548,33 @@ class RobotScene : Scene3 {
       (o.FX, o.FY, o.FZ, o.FRx, o.FRy, o.FRz) = (cs.Org.X, cs.Org.Y, cs.Org.Z, rx, ry, rz);
       (o.CP1, o.CP2, o.CP3) = (origin, xptr, plane);
       o.HasFrame = true;
+      o.PinFrame ();                                        // lock the frame to the pallet
       ViewModel.SetObjFrame (o.FX, o.FY, o.FZ, o.FRx, o.FRy, o.FRz);
+      UpdatePartRest ();                                    // sheet rides the pallet
       Lux.Redraw ();
    }
 
    internal void ClearPalletFrame () {
       if (Sel is not { } o) return;
-      o.HasFrame = false;
+      o.HasFrame = o.FramePinned = false;
       (o.CP1, o.CP2, o.CP3) = (null, null, null);
       ViewModel.SetObjFrame (0, 0, 0, 0, 0, 0);
       Lux.Redraw ();
+   }
+
+   // Decompose a local→world matrix into an object's 6-DOF placement and apply it.
+   static void SetPlacementFromMatrix (SceneObject o, Matrix3 m) {
+      var cs = m.ToCS ();
+      var (rx, ry, rz) = MatrixToEuler (cs);
+      (o.X, o.Y, o.Z, o.Rx, o.Ry, o.Rz) = (cs.Org.X, cs.Org.Y, cs.Org.Z, rx, ry, rz);
+      o.ApplyPlacement ();
+   }
+
+   // Decompose a frame-local→world matrix into an object's 6 frame parameters.
+   static void SetFrameFromMatrix (SceneObject o, Matrix3 mf) {
+      var cs = mf.ToCS ();
+      var (rx, ry, rz) = MatrixToEuler (cs);
+      (o.FX, o.FY, o.FZ, o.FRx, o.FRy, o.FRz) = (cs.Org.X, cs.Org.Y, cs.Org.Z, rx, ry, rz);
    }
 
    // P1=origin, P2 sets +X, P3 lies on the +XY side.  Z = X×(P3−P1) (right-hand rule),
@@ -541,7 +599,7 @@ class RobotScene : Scene3 {
    // Each object is a pickable surface (frame/pickup/place) and a collision obstacle.
    internal void ImportGeometry (string path) {
       try {
-         var obj = new SceneObject (Path.GetFileName (path), LoadMesh (path));
+         var obj = new SceneObject (path, LoadMesh (path));
          if (obj.OBB == null) Lib.Trace ($"Warning: '{obj.Name}' has no collision mesh (won't collide)");
          mObjects.Add (obj);
          mGeomGroup.Add (obj.Node);
@@ -565,12 +623,16 @@ class RobotScene : Scene3 {
       try {
          var mesh = LoadMesh (path);
          if (mPartXfmVN != null) mPartGroup.Remove (mPartXfmVN);
+         mPartPath     = path;
          mPartMesh     = mesh;
-         try { mPartOBB = OBBTree.From (mesh); } catch { mPartOBB = null; }
+         mPartOBB      = BuildPartOBB (mesh);
          mPartAttached = false;
          // Place the part at the selected object's user frame if it has one, else at origin.
+         // Record the host so the part rides the pallet when its frame moves/tilts.
          bool onFrame  = Sel is { HasFrame: true };
+         mPartHost     = onFrame ? Sel : null;
          mPartHomeXfm  = onFrame ? Matrix3.To (Sel!.Frame) : Matrix3.Identity;
+         mPartFrameRel = onFrame ? mPartHomeXfm * Sel!.FrameXfm.GetInverse () : Matrix3.Identity;
          mPartVN       = new Mesh3VN (mesh) { Mode = EShadeMode.Phong, Color = PartIdle };
          mPartXfmVN    = new XfmVN (mPartHomeXfm, mPartVN);
          mPartGroup.Add (mPartXfmVN);
@@ -584,6 +646,28 @@ class RobotScene : Scene3 {
          ViewModel.PartStatus = "(load failed)";
          Lib.Trace ($"Part import failed: {ex.Message}");
       }
+   }
+
+   // Builds the part's collision OBB from a slightly eroded copy of its mesh (~3 mm inset;
+   // a thin axis collapses to a centre sheet).  This gives a small clearance so the part
+   // resting on / touching a pallet surface doesn't false-trigger a collision.
+   static OBBTree? BuildPartOBB (Mesh3 mesh) {
+      try {
+         var b = mesh.Bound; var c = b.Midpoint; const double clr = 3;
+         double S (double half) => Math.Max (0.05, (half - clr) / Math.Max (half, 1e-6));
+         var m = Matrix3.Translation (-c.X, -c.Y, -c.Z)
+               * Matrix3.Scaling (S (b.Width / 2), S (b.Height / 2), S (b.Depth / 2))
+               * Matrix3.Translation (c.X, c.Y, c.Z);
+         return OBBTree.From (mesh * m);
+      } catch { return null; }
+   }
+
+   // Keeps the resting part on its host pallet: when the pallet's frame moves or tilts, the
+   // part (sheet) rides along, staying seated on the (possibly tilted) surface.
+   void UpdatePartRest () {
+      if (!mHasPart || mPartAttached || mPartHost == null || mPartXfmVN == null) return;
+      mPartHomeXfm   = mPartFrameRel * mPartHost.FrameXfm;
+      mPartXfmVN.Xfm = mPartHomeXfm;
    }
 
    // Pick action: rigidly attach the part to the flange from wherever it currently rests,
@@ -633,22 +717,30 @@ class RobotScene : Scene3 {
       Lib.Trace ("Click the part (or a geometry) surface to set the pickup position");
    }
 
-   // Arm the next click to fix the place position (where the part is dropped).
+   // Arm the next click to ADD a place destination (the chain picks from the previous drop
+   // and carries to the next).  Each click appends a destination.
    internal void BeginPickPlace () {
       if (mObjects.Count == 0) { Lib.Trace ("Import a geometry first"); return; }
       mPickMode = EPickMode.Place;
       ArmHighlight (true);
-      Lib.Trace ("Click a geometry surface to set the place position");
+      Lib.Trace ("Click a geometry surface to add a place destination");
    }
 
    // Records the place position (where the part is set down) and previews it.  Coordinates
    // are reported in the destination object's frame (or world if it has none).
    void SetPlace (Point3 hit, SceneObject? obj) {
       ArmHighlight (false);
-      mPlacePt  = hit;
-      mHasPlace = true;
-      ViewModel.PlaceStatus = "Place: " + InFrame (hit, obj);
-      SetIKDisplayFromWorld (new CoordSystem (mPlacePt, mHome.VecX, mHome.VecY));
+      var rot = (obj?.Xfm ?? Matrix3.Identity).ExtractRotation ();    // destination surface tilt
+      mPlaces.Add ((hit, rot));
+      ViewModel.PlaceStatus = $"Place: {mPlaces.Count} dest — last " + InFrame (hit, obj);
+      SetIKDisplayFromWorld (TiltedPose (hit, rot));
+   }
+
+   // Clears the taught place destinations (start a fresh transfer chain).
+   internal void ClearPlaces () {
+      mPlaces.Clear ();
+      ViewModel.PlaceStatus = "Place: (none)";
+      Lib.Trace ("Place destinations cleared");
    }
 
    // Formats a world point relative to an object's user frame (or world if it has none).
@@ -691,20 +783,25 @@ class RobotScene : Scene3 {
       ArmHighlight (false);
       mPickupPt  = hit;
       mHasPickup = true;
-      // Highlight the clicked triangle in world coords.  Meshes are stored in local coords,
-      // so transform the hit into mesh space and the face back to world using the placement.
+      // Capture the clicked surface's tilt so the TCP approaches perpendicular to it
+      // (a flat pallet → identity → home orientation, as before).
       var xfm = onPart ? mPartHomeXfm : obj?.Xfm ?? Matrix3.Identity;
-      var msh = onPart ? mPartMesh : obj?.Mesh;
+      mPickupRot = xfm.ExtractRotation ();
+      var msh = onPart ? mPartMesh : obj?.Mesh;       // highlight the clicked triangle
       if (msh != null && FindFace (msh, hit * xfm.GetInverse ()) is { } f)
          HighlightWorldFace (f.A * xfm, f.B * xfm, f.C * xfm);
       ViewModel.PickupStatus = "Pick: " + InFrame (hit, onPart ? null : obj);
-      SetIKDisplayFromWorld (PickupPose ());        // move robot to the pickup as a preview
+      SetIKDisplayFromWorld (PickupPose ());          // move robot to the pickup as a preview
    }
 
-   // The pickup pose in WORLD coords: the selected surface point with the current home
-   // orientation.  Because the orientation tracks home, editing home (Set Home) keeps the
-   // approach aligned with it.
-   CoordSystem PickupPose () => new (mPickupPt, mHome.VecX, mHome.VecY);
+   // The pickup pose in WORLD coords: the surface point with the home orientation TILTED by
+   // the pallet's tilt, so the tool stays perpendicular to the (possibly tilted) surface.
+   CoordSystem PickupPose () => TiltedPose (mPickupPt, mPickupRot);
+
+   // Home orientation rotated by a surface tilt, located at a world point.
+   CoordSystem TiltedPose (Point3 pt, Matrix3 tilt) => new (pt, mHome.VecX * tilt, mHome.VecY * tilt);
+   // The surface "up" (world +Z) rotated by a tilt — the approach/retract direction.
+   static Vector3 TiltedUp (Matrix3 tilt) => Vector3.ZAxis * tilt;
 
    // Draws the selected pickup triangle (given in world coords) as a bright overlay,
    // offset 1 mm along its normal to avoid z-fighting with the surface.
@@ -721,30 +818,30 @@ class RobotScene : Scene3 {
    static readonly Color4 PartIdle = new (120, 180, 225);
 
    // Generates a full pick-and-place cycle in WORLD coords and writes it (with PICK/PLACE
-   // action tags) to the script, then loads it:
-   //   Home → above-pickup → pickup[PICK] → above-pickup
-   //        → above-place → place[PLACE] → above-place → Home
-   // The place leg is omitted if no place position has been taught.  Every waypoint keeps
-   // the home orientation, so the robot only translates.
+   // action tags) to the script, then loads it.  With several place destinations the part is
+   // picked, dropped at the first, re-picked and carried to the next, and so on:
+   //   Home → pickup[PICK] → place₁[PLACE] (→[PICK]) → place₂[PLACE] (→[PICK]) → … → Home
+   // Pickup/place poses are tilted with their pallet so the tool approaches perpendicular to a
+   // tilted surface, with the approach/retract offset along that tilted normal.
    internal void GenerateWaypoints () {
       if (!mHasPickup) { Lib.Trace ("Set a pickup position first"); return; }
-      const double clearance = 100;                  // mm above pickup/place, along world +Z
-      var up       = Vector3.ZAxis;
-      var home     = mHome;                          // world TCP home pose
-      var pickup   = PickupPose ();                  // surface point, home orientation
-      var pickHi   = pickup + up * clearance;
+      const double clearance = 100;                  // mm off the surface, along its tilted normal
+      var pickup   = PickupPose ();                  // surface point, tilted orientation
+      var pickHi   = pickup + TiltedUp (mPickupRot) * clearance;
 
       var path = new List<(CoordSystem Pose, EAction A)> {
-         (home, EAction.Move), (pickHi, EAction.Move), (pickup, EAction.Pick), (pickHi, EAction.Move),
+         (mHome, EAction.Move), (pickHi, EAction.Move), (pickup, EAction.Pick), (pickHi, EAction.Move),
       };
-      if (mHasPlace) {
-         var place   = new CoordSystem (mPlacePt, mHome.VecX, mHome.VecY);
-         var placeHi = place + up * clearance;
+      for (int i = 0; i < mPlaces.Count; i++) {
+         var (pt, rot) = mPlaces[i];
+         var place   = TiltedPose (pt, rot);
+         var placeHi = place + TiltedUp (rot) * clearance;
          path.Add ((placeHi, EAction.Move));
-         path.Add ((place,   EAction.Place));
+         path.Add ((place,   EAction.Place));        // set the part down here
+         if (i < mPlaces.Count - 1) path.Add ((place, EAction.Pick));  // re-grab to carry onward
          path.Add ((placeHi, EAction.Move));
       }
-      path.Add ((home, EAction.Move));
+      path.Add ((mHome, EAction.Move));
 
       try {
          var ic = System.Globalization.CultureInfo.InvariantCulture;
@@ -768,6 +865,242 @@ class RobotScene : Scene3 {
       var (rx, ry, rz) = MatrixToEuler (world);
       ViewModel.SetIKPose (world.Org.X, world.Org.Y, world.Org.Z, rx, ry, rz);
    }
+
+   // Builds a CoordSystem from a position + XYZ Euler angles (degrees).
+   static CoordSystem PoseFrom (double x, double y, double z, double rx, double ry, double rz) {
+      var cs = CoordSystem.World;
+      cs *= Matrix3.Rotation (EAxis.X, rx.D2R ());
+      cs *= Matrix3.Rotation (EAxis.Y, ry.D2R ());
+      cs *= Matrix3.Rotation (EAxis.Z, rz.D2R ());
+      cs += new Vector3 (x, y, z);
+      return cs;
+   }
+
+   // A rotation-only matrix ↔ its XYZ Euler angles (degrees), for persisting surface tilts.
+   static double[] RotEuler (Matrix3 rot) { var (rx, ry, rz) = MatrixToEuler (rot.ToCS ()); return [rx, ry, rz]; }
+   static Matrix3 RotFromEuler (double rx, double ry, double rz) => Matrix3.To (PoseFrom (0, 0, 0, rx, ry, rz));
+
+   // ── Cell save / load ───────────────────────────────────────────────────────
+   // Serialises the whole cell (objects + placements + frames, part, pickup/place, home,
+   // obstacle box, waypoints) to a JSON file that can be reopened later.
+   internal void SaveCell (string file) {
+      try {
+         double[] PoseArr (CoordSystem cs) { var (rx, ry, rz) = MatrixToEuler (cs); return [cs.Org.X, cs.Org.Y, cs.Org.Z, rx, ry, rz]; }
+         var dto = new CellDto { Home = PoseArr (mHome), Box = [ViewModel.BX, ViewModel.BY, ViewModel.BZ] };
+         foreach (var o in mObjects)
+            dto.Objects.Add (new ObjDto {
+               Path = o.Path, Pose = [o.X, o.Y, o.Z, o.Rx, o.Ry, o.Rz],
+               HasFrame = o.HasFrame, Frame = [o.FX, o.FY, o.FZ, o.FRx, o.FRy, o.FRz],
+               Calib = o is { CP1: { } a, CP2: { } b, CP3: { } c }
+                       ? [a.X, a.Y, a.Z, b.X, b.Y, b.Z, c.X, c.Y, c.Z] : null });
+         if (mHasPart) dto.Part = new PartDto {
+            Path = mPartPath, Place = PoseArr (mPartHomeXfm.ToCS ()),
+            Host = mPartHost != null ? mObjects.IndexOf (mPartHost) : -1 };
+         if (mHasPickup) dto.Pickup = [mPickupPt.X, mPickupPt.Y, mPickupPt.Z, .. RotEuler (mPickupRot)];
+         foreach (var (pt, rot) in mPlaces)
+            dto.Places.Add ([pt.X, pt.Y, pt.Z, .. RotEuler (rot)]);
+         foreach (var w in mScript)
+            dto.Waypoints.Add (new WpDto { P = [w.X, w.Y, w.Z, w.Rx, w.Ry, w.Rz], A = w.A.ToString () });
+         File.WriteAllText (file, JsonSerializer.Serialize (dto, sJsonOpts));
+         Lib.Trace ($"Saved cell → {Path.GetFileName (file)}");
+      } catch (Exception ex) { Lib.Trace ($"Save cell failed: {ex.Message}"); }
+   }
+
+   internal void LoadCell (string file) {
+      try {
+         var dto = JsonSerializer.Deserialize<CellDto> (File.ReadAllText (file));
+         if (dto == null) { Lib.Trace ("Empty cell file"); return; }
+
+         // Clear current objects, part, pickup/place and waypoints.
+         foreach (var o in mObjects) mGeomGroup.Remove (o.Node);
+         mObjects.Clear (); ViewModel.Objects.Clear ();
+         if (mPickupHiliteVN != null) { mGeomGroup.Remove (mPickupHiliteVN); mPickupHiliteVN = null; }
+         if (mPartXfmVN != null) { mPartGroup.Remove (mPartXfmVN); mPartXfmVN = null; }
+         mHasPart = mPartAttached = mHasPickup = false; mPartMesh = null; mPartOBB = null;
+         mPartHost = null; mPlaces.Clear ();
+
+         foreach (var od in dto.Objects) {
+            try {
+               var obj = new SceneObject (od.Path, LoadMesh (od.Path));
+               if (od.Pose.Length == 6) (obj.X, obj.Y, obj.Z, obj.Rx, obj.Ry, obj.Rz) =
+                  (od.Pose[0], od.Pose[1], od.Pose[2], od.Pose[3], od.Pose[4], od.Pose[5]);
+               obj.ApplyPlacement ();
+               if (od.HasFrame && od.Frame.Length == 6) {
+                  (obj.FX, obj.FY, obj.FZ, obj.FRx, obj.FRy, obj.FRz) =
+                     (od.Frame[0], od.Frame[1], od.Frame[2], od.Frame[3], od.Frame[4], od.Frame[5]);
+                  obj.HasFrame = true;
+                  if (od.Calib is { Length: 9 } q) {
+                     obj.CP1 = new (q[0], q[1], q[2]); obj.CP2 = new (q[3], q[4], q[5]); obj.CP3 = new (q[6], q[7], q[8]);
+                  }
+                  obj.PinFrame ();   // re-establish the rigid frame↔pallet link
+               }
+               mObjects.Add (obj); mGeomGroup.Add (obj.Node);
+               ViewModel.Objects.Add (new ObjectItemVM (obj.Name));
+            } catch (Exception ex) { Lib.Trace ($"Object '{od.Path}' failed: {ex.Message}"); }
+         }
+         ViewModel.SelectedObject = mObjects.Count > 0 ? 0 : -1;
+
+         if (dto.Home.Length == 6) mHome = PoseFrom (dto.Home[0], dto.Home[1], dto.Home[2], dto.Home[3], dto.Home[4], dto.Home[5]);
+         if (dto.Box.Length == 3) { ViewModel.BX = dto.Box[0]; ViewModel.BY = dto.Box[1]; ViewModel.BZ = dto.Box[2]; }
+
+         if (dto.Part is { } pd) {
+            try {
+               var mesh = LoadMesh (pd.Path);
+               mPartPath = pd.Path; mPartMesh = mesh;
+               mPartOBB = BuildPartOBB (mesh);
+               mPartHomeXfm = pd.Place.Length == 6
+                  ? Matrix3.To (PoseFrom (pd.Place[0], pd.Place[1], pd.Place[2], pd.Place[3], pd.Place[4], pd.Place[5]))
+                  : Matrix3.Identity;
+               mPartVN    = new Mesh3VN (mesh) { Mode = EShadeMode.Phong, Color = PartIdle };
+               mPartXfmVN = new XfmVN (mPartHomeXfm, mPartVN);
+               mPartGroup.Add (mPartXfmVN);
+               mHasPart = true; ViewModel.PartStatus = $"{Path.GetFileName (pd.Path)} — loaded";
+               if (pd.Host >= 0 && pd.Host < mObjects.Count) {        // re-link part to its host pallet
+                  mPartHost = mObjects[pd.Host];
+                  mPartFrameRel = mPartHomeXfm * mPartHost.FrameXfm.GetInverse ();
+               }
+            } catch (Exception ex) { Lib.Trace ($"Part failed: {ex.Message}"); }
+         }
+         if (dto.Pickup is { Length: >= 3 } pk) {
+            mPickupPt = new (pk[0], pk[1], pk[2]);
+            mPickupRot = pk.Length >= 6 ? RotFromEuler (pk[3], pk[4], pk[5]) : Matrix3.Identity;
+            mHasPickup = true; ViewModel.PickupStatus = "Pick: loaded";
+         }
+         foreach (var pl in dto.Places)
+            if (pl.Length >= 3)
+               mPlaces.Add ((new (pl[0], pl[1], pl[2]), pl.Length >= 6 ? RotFromEuler (pl[3], pl[4], pl[5]) : Matrix3.Identity));
+         if (mPlaces.Count > 0) ViewModel.PlaceStatus = $"Place: {mPlaces.Count} dest";
+
+         mScript.Clear ();
+         foreach (var w in dto.Waypoints) {
+            if (w.P.Length < 6) continue;
+            var act = w.A?.ToUpperInvariant () switch { "PICK" => EAction.Pick, "PLACE" => EAction.Place, _ => EAction.Move };
+            mScript.Add ((w.P[0], w.P[1], w.P[2], w.P[3], w.P[4], w.P[5], act));
+         }
+         SaveScript (); AfterScriptChanged ();
+         ViewModel.PalletStatus = $"{mObjects.Count} object(s)";
+         GoHome (); Lux.UIScene?.ZoomExtents ();
+         Lib.Trace ($"Loaded cell '{Path.GetFileName (file)}'");
+      } catch (Exception ex) { Lib.Trace ($"Load cell failed: {ex.Message}"); }
+   }
+
+   static readonly JsonSerializerOptions sJsonOpts = new () { WriteIndented = true };
+
+   // ── Collision-free path planning (RRT) ─────────────────────────────────────
+   // Re-routes the current waypoint sequence so each transfer is collision-free, inserting
+   // intermediate Move waypoints (via an RRT planner) where the straight segment is blocked.
+   // The carried-part swept volume is included between Pick and Place waypoints.
+   internal void PlanCollisionFree () {
+      if (mScript.Count < 2) { Lib.Trace ("Generate or add waypoints first"); return; }
+      ComputeGraspRel ();
+      var save = SaveJoints ();
+      var outWp = new List<(double X, double Y, double Z, double Rx, double Ry, double Rz, EAction A)> { mScript[0] };
+      bool carrying = false, anyFail = false; int inserted = 0;
+      for (int i = 1; i < mScript.Count; i++) {
+         var a = mScript[i - 1]; var b = mScript[i];
+         if (a.A == EAction.Pick) carrying = true; else if (a.A == EAction.Place) carrying = false;
+         Point3 pa = new (a.X, a.Y, a.Z), pb = new (b.X, b.Y, b.Z);
+         // Orientation field along this segment: interpolate the endpoints' Euler angles by
+         // straight-line progress, so inserted via-points keep the segment's (tilted) tool
+         // orientation instead of snapping to home.
+         (double rx, double ry, double rz) Ori (Point3 p) {
+            var ab = pb - pa; double l2 = ab.LengthSq;
+            double f = l2 < 1e-9 ? 0 : Math.Clamp ((p - pa).Dot (ab) / l2, 0, 1);
+            return (a.Rx + (b.Rx - a.Rx) * f, a.Ry + (b.Ry - a.Ry) * f, a.Rz + (b.Rz - a.Rz) * f);
+         }
+         var via = Rrt (pa, pb, Ori, carrying);
+         if (via == null) anyFail = true;
+         else for (int j = 1; j < via.Count - 1; j++) {
+            var (rx, ry, rz) = Ori (via[j]);
+            outWp.Add ((via[j].X, via[j].Y, via[j].Z, rx, ry, rz, EAction.Move)); inserted++;
+         }
+         outWp.Add (b);
+      }
+      RestoreJoints (save);
+      mScript.Clear (); mScript.AddRange (outWp);
+      SaveScript (); AfterScriptChanged ();
+      Lib.Trace (anyFail ? $"Re-routed with {inserted} via-points (some segments unsolved)"
+                         : $"Collision-free: inserted {inserted} via-points");
+   }
+
+   // Captures the part's pose relative to the flange when grabbed at the pickup, so the
+   // planner can sweep the carried part correctly.
+   void ComputeGraspRel () {
+      mPlanGraspRel = Matrix3.Identity;
+      if (!mHasPart || !mHasPickup) return;
+      var save = SaveJoints ();
+      if (SolveWorld (PickupPose ())) mPlanGraspRel = mPartHomeXfm * mTip.Xfm.GetInverse ();
+      RestoreJoints (save);
+   }
+
+   double[] SaveJoints () { var s = new double[6]; for (int i = 0; i < 6; i++) s[i] = mJoints[i].JValue; return s; }
+   void RestoreJoints (double[] s) { for (int i = 0; i < 6; i++) mJoints[i].JValue = s[i]; }
+
+   // True if a world TCP point with the given orientation is reachable and collision-free.
+   bool PoseFree (Point3 p, (double rx, double ry, double rz) o, bool carrying) {
+      var save = SaveJoints ();
+      bool free = SolveWorld (PoseFrom (p.X, p.Y, p.Z, o.rx, o.ry, o.rz)) && !HasCollision (carrying);
+      RestoreJoints (save);
+      return free;
+   }
+
+   // True if the straight segment a→b is collision-free (sampled every ~25 mm), using the
+   // orientation field 'ori' at each sample.
+   bool SegmentFree (Point3 a, Point3 b, Func<Point3, (double, double, double)> ori, bool carrying) {
+      double len = (b - a).Length; int n = Math.Max (1, (int)(len / 25));
+      for (int i = 1; i <= n; i++) { var p = a + (b - a) * ((double)i / n); if (!PoseFree (p, ori (p), carrying)) return false; }
+      return true;
+   }
+
+   // Goal-biased RRT in world XYZ; orientation at each point comes from 'ori'.  Returns a
+   // collision-free poly-line from start to goal (inclusive), or null within the iteration cap.
+   List<Point3>? Rrt (Point3 start, Point3 goal, Func<Point3, (double, double, double)> ori, bool carrying) {
+      if (SegmentFree (start, goal, ori, carrying)) return [start, goal];
+      // Planning box: union of start/goal and all object bounds, expanded.
+      Point3 lo = new (Math.Min (start.X, goal.X), Math.Min (start.Y, goal.Y), Math.Min (start.Z, goal.Z));
+      Point3 hi = new (Math.Max (start.X, goal.X), Math.Max (start.Y, goal.Y), Math.Max (start.Z, goal.Z));
+      foreach (var o in mObjects) {
+         var bb = o.Mesh.GetBound (o.Xfm);
+         lo = new (Math.Min (lo.X, bb.X.Min), Math.Min (lo.Y, bb.Y.Min), Math.Min (lo.Z, bb.Z.Min));
+         hi = new (Math.Max (hi.X, bb.X.Max), Math.Max (hi.Y, bb.Y.Max), Math.Max (hi.Z, bb.Z.Max));
+      }
+      const double m = 300;
+      lo = new (lo.X - m, lo.Y - m, lo.Z - m); hi = new (hi.X + m, hi.Y + m, hi.Z + m);
+      const double step = 80;
+      List<(Point3 P, int Par)> tree = [(start, -1)];
+      for (int iter = 0; iter < 4000; iter++) {
+         var target = mRng.NextDouble () < 0.15 ? goal : new Point3 (
+            lo.X + mRng.NextDouble () * (hi.X - lo.X),
+            lo.Y + mRng.NextDouble () * (hi.Y - lo.Y),
+            lo.Z + mRng.NextDouble () * (hi.Z - lo.Z));
+         int ni = 0; double nd = double.MaxValue;
+         for (int k = 0; k < tree.Count; k++) { double d = (tree[k].P - target).LengthSq; if (d < nd) { nd = d; ni = k; } }
+         var from = tree[ni].P; var dir = target - from; double dist = dir.Length;
+         if (dist < 1e-3) continue;
+         var np = dist <= step ? target : from + dir * (step / dist);
+         if (!PoseFree (np, ori (np), carrying) || !SegmentFree (from, np, ori, carrying)) continue;
+         tree.Add ((np, ni));
+         if (SegmentFree (np, goal, ori, carrying)) {
+            List<Point3> path = []; for (int idx = tree.Count - 1; idx >= 0; idx = tree[idx].Par) path.Add (tree[idx].P);
+            path.Reverse (); path.Add (goal);
+            return Shortcut (path, ori, carrying);
+         }
+      }
+      return null;
+   }
+
+   // Greedy shortcut: skip intermediate points whenever a direct segment is collision-free.
+   List<Point3> Shortcut (List<Point3> path, Func<Point3, (double, double, double)> ori, bool carrying) {
+      List<Point3> outp = [path[0]]; int i = 0;
+      while (i < path.Count - 1) {
+         int j = path.Count - 1;
+         while (j > i + 1 && !SegmentFree (path[i], path[j], ori, carrying)) j--;
+         outp.Add (path[j]); i = j;
+      }
+      return outp;
+   }
+
+   readonly Random mRng = new (12345);
 
 
    // The mesh triangle the hit point lies on (closest by perpendicular distance among
@@ -866,19 +1199,26 @@ class RobotScene : Scene3 {
    readonly List<SceneObject> mObjects = [];
    Mesh3VN?                   mPickupHiliteVN;
    bool                       mArmed;            // a teach mode is waiting for a click
-   Point3                     mPickupPt, mPlacePt;
-   bool                       mHasPickup, mHasPlace;
+   Point3                     mPickupPt;
+   Matrix3                    mPickupRot = Matrix3.Identity;             // pickup surface tilt at teach
+   bool                       mHasPickup;
+   // Ordered place destinations (point + surface tilt).  The part is picked, dropped at the
+   // first, re-picked and carried to the next, and so on — enabling multi-pallet transfers.
+   readonly List<(Point3 Pt, Matrix3 Rot)> mPlaces = [];
    EPickMode                  mPickMode;
    enum EPickMode { None, Corner, Pickup, Place }
 
    // Imported part: placed on a pallet, grabbed at pickup, then fixed to the flange.
    readonly GroupVN mPartGroup;
+   string           mPartPath = "";
    Mesh3?           mPartMesh;
    Mesh3VN?         mPartVN;
    OBBTree?         mPartOBB;
    XfmVN?           mPartXfmVN;
-   Matrix3          mPartHomeXfm = Matrix3.Identity;    // rest pose on the pallet
-   Matrix3          mPartRelXfm  = Matrix3.Identity;    // pose relative to flange while held
+   SceneObject?     mPartHost;                          // pallet the part rests on (rides its frame)
+   Matrix3          mPartHomeXfm  = Matrix3.Identity;   // rest pose on the pallet
+   Matrix3          mPartFrameRel = Matrix3.Identity;   // part rest pose relative to host frame
+   Matrix3          mPartRelXfm   = Matrix3.Identity;   // pose relative to flange while held
    bool             mHasPart, mPartAttached;
 
    // Waypoint = TCP pose (frame-relative when a frame is active) + an action that fires on
@@ -1033,13 +1373,14 @@ class CollisionTri {
 // Movable in 6 DOF (Xfm) and carries its own user frame (6 params).  OBB is null if the mesh
 // was too degenerate to build a tree.
 class SceneObject {
-   public SceneObject (string name, Mesh3 mesh) {
-      Name = name; Mesh = mesh;
+   public SceneObject (string path, Mesh3 mesh) {
+      Path = path; Name = System.IO.Path.GetFileName (path); Mesh = mesh;
       try { OBB = OBBTree.From (mesh); } catch { OBB = null; }
       VN   = new Mesh3VN (mesh) { Mode = EShadeMode.Phong, Color = Idle };
       Node = new XfmVN (Matrix3.Identity, VN);
    }
 
+   public readonly string   Path;
    public readonly string   Name;
    public readonly Mesh3    Mesh;
    public readonly OBBTree? OBB;
@@ -1058,6 +1399,14 @@ class SceneObject {
    public Point3? CP1, CP2, CP3;       // 3-point calibration values (optional)
    public CoordSystem Frame => Pose (FX, FY, FZ, FRx, FRy, FRz);
 
+   // Rigid link between the frame and the object: once pinned, the object and its user
+   // frame move together.  FrameRel = (frame→world) × (object→world)⁻¹ captured when the
+   // frame is established, so it stays constant as either is edited.
+   public bool    FramePinned;
+   public Matrix3 FrameRel = Matrix3.Identity;
+   public Matrix3 FrameXfm => Matrix3.To (Frame);                         // frame-local → world
+   public void PinFrame () { FrameRel = FrameXfm * Xfm.GetInverse (); FramePinned = true; }
+
    // Builds a CoordSystem from a position + XYZ Euler angles (degrees).
    static CoordSystem Pose (double x, double y, double z, double rx, double ry, double rz) {
       var cs = CoordSystem.World;
@@ -1068,4 +1417,30 @@ class SceneObject {
       return cs;
    }
 }
+#endregion
+
+#region Cell DTOs ----------------------------------------------------------------------------------
+// Plain data carriers for JSON cell persistence (objects, part, pickup/place, home, box, waypoints).
+class CellDto {
+   public List<ObjDto> Objects { get; set; } = [];
+   public PartDto? Part { get; set; }
+   public double[]? Pickup { get; set; }                 // X,Y,Z,Rx,Ry,Rz (rot = surface tilt)
+   public List<double[]> Places { get; set; } = [];      // each X,Y,Z,Rx,Ry,Rz (ordered chain)
+   public double[] Home { get; set; } = [];
+   public double[] Box { get; set; } = [];
+   public List<WpDto> Waypoints { get; set; } = [];
+}
+class ObjDto {
+   public string Path { get; set; } = "";
+   public double[] Pose { get; set; } = [];     // X,Y,Z,Rx,Ry,Rz
+   public bool HasFrame { get; set; }
+   public double[] Frame { get; set; } = [];    // X,Y,Z,Rx,Ry,Rz
+   public double[]? Calib { get; set; }         // 3 points × 3 (or null)
+}
+class PartDto {
+   public string Path { get; set; } = "";
+   public double[] Place { get; set; } = [];    // X,Y,Z,Rx,Ry,Rz rest pose
+   public int Host { get; set; } = -1;          // index of the pallet the part rides (or -1)
+}
+class WpDto   { public double[] P { get; set; } = []; public string A { get; set; } = "Move"; }
 #endregion
