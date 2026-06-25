@@ -344,9 +344,16 @@ class RobotScene : Scene3 {
    // Records the robot's current pose as a new Move waypoint (the action can be changed
    // afterward from the waypoint list).
    internal void AddWaypoint () {
-      mScript.Add ((ViewModel.X, ViewModel.Y, ViewModel.Z, ViewModel.Rx, ViewModel.Ry, ViewModel.Rz, EAction.Move));
-      SaveScript (); AfterScriptChanged ();
-      Lib.Trace ($"Added waypoint {mScript.Count}");
+      // Insert AFTER the currently selected waypoint (the WP slider / clicked WP n), so points
+      // can be added mid-sequence — not always at the end.
+      int at = mScript.Count == 0 ? 0
+             : Math.Clamp ((int)Math.Round (ViewModel.WaypointPos), 0, mScript.Count - 1) + 1;
+      mScript.Insert (at, (ViewModel.X, ViewModel.Y, ViewModel.Z, ViewModel.Rx, ViewModel.Ry, ViewModel.Rz, EAction.Move));
+      SaveScript ();
+      ViewModel.WaypointMax = Math.Max (0, mScript.Count - 1);
+      RefreshWaypointList ();
+      ViewModel.WaypointPos = at;          // keep the newly inserted point selected
+      Lib.Trace ($"Inserted waypoint {at + 1} of {mScript.Count}");
    }
 
    // Cycles a waypoint's action Move → Pick → Place → Move (called from the list row).
