@@ -4,7 +4,7 @@
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-namespace FApp.Testing;
+namespace FRobot.Testing;
 
 #region class Assert -------------------------------------------------------------------------------
 /// <summary>Various Assert variants, used in [Test] methods</summary>
@@ -86,9 +86,9 @@ static class Assert {
 #endregion
 
 #region class PT -----------------------------------------------------------------------------------
-/// <summary>Module class representing the FApp.Test system</summary>
+/// <summary>Module class representing the FRobot.Test system</summary>
 static class PT {
-   /// <summary>Path to test data (typically FApp/Test)</summary>
+   /// <summary>Path to test data (typically FRobot/Test)</summary>
    public static string Data => mData ??= "F:/TData";
    static string? mData;
 

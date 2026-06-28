@@ -1,0 +1,33 @@
+= Code details
+
+Code-level explanations with file and line references. All line numbers
+are approximate and refer to the files after the drawing-mode cleanup.
+
+'''''
+
+== Scene graph & rendering
+
+*Entry point:* `RobotScene.cs` — constructor, `~line 10`
+
+....
+Scene3 (Nori)
+└── Root: GroupVN
+    ├── MechanismVN(mMech)          renders all link meshes from mechanism.curl
+    ├── mGripper: XfmVN             applies mTip.Xfm; child is an empty GroupVN
+    │                               (placeholder for a future tool mesh)
+    ├── mBoxXfm: XfmVN              applies BoxWorldXfm; child is mBoxVN
+    │   └── mBoxVN: Mesh3VN         the blue/red 200×200×200 mm obstacle cube
+    ├── mTriGroup: GroupVN          collision triangles (Mesh3VN added dynamically)
+    ├── TcpVN                       streaming; draws TCP axes + ring
+    ├── InfoVN                      streaming; draws text overlay (pose + angles)
+    └── TraceVN                     Nori singleton; output from Lib.Trace()
+....
+
+`Streaming = true` on `TcpVN` and `InfoVN` means Lux redraws them every
+frame. All other nodes are event-driven: call `node.Redraw()` or modify
+a property that internally calls it.
+
+`MechanismVN` is a Nori built-in that knows how to traverse the
+mechanism tree and render each mesh at its current world transform. When
+`JValue` changes on any joint, the mechanism tree updates its transforms
+and `MechanismVN` picks up the change automatically.

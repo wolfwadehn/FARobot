@@ -1,6 +1,6 @@
 // ╔═╦╗
 // ║╬╠╬╦╗ ConGlobals.cs
-// ║╔╣╠║╣ Global usings for the FApp.Console application
+// ║╔╣╠║╣ Global usings for the FRobot.Console application
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
 global using System;
 global using System.Collections.Generic;

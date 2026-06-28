@@ -1,24 +1,5 @@
 # Code Style
 
-## File Header
-
-Every `.cs` file begins with the banner, followed by `#nullable enable`, then a blank line, then the namespace:
-
-```csharp
-// ---------------------------------------------------------------------------------------
-// Flux ~ Sheet metal CAD/CAM system
-// Copyright (c) Metamation India.                                                ===  --
-// ---------------------------------------------------------------------------      ==(  )
-// FileName.cs                                                                    ===  --
-// One-line description of what this file contains.
-// ---------------------------------------------------------------------------------------
-#nullable enable
-
-namespace Flux;
-```
-
-Test files use `Flit ~ Test suites for Flux sheet metal CAD/CAM system` on the second line.
-
 ## Class / Region Structure
 
 Each top-level type is wrapped in a `#region` padded with `-` to **column 100**:
@@ -450,61 +431,3 @@ Before using an API in a new scenario (e.g., a flag designed for one use case ap
 ## D025 — Urgent Fix: Minimal PR + Separate Refactor Case
 
 If a PR is needed urgently (e.g., to fix an exception before a build), do the minimal safe fix now and create a FogBugz case for the refactor. Don't block an urgent fix on a refactor.
-
----
-
-## PR Review Guidelines
-
-These rules are ranked by how often each issue appeared in real PR reviews (source: 5,013 comments across all closed PRs).
-
-## Critical / High
-
-| Rule | Description | Frequency |
-|------|-------------|-----------|
-| **G001** | Use `?.` and `??=` instead of manual null checks | 123× |
-| **G002** | XML `<summary>` on every public member in a public type | 113× |
-| **G003** | Naming: `m`/`s` prefix, PascalCase, proper English names | 82× |
-| **G004** | Class segments in correct order, inside `#region` blocks | 67× |
-| **G005** | Test attribute format: no "Case" prefix, unique IDs, current year's file | 65× |
-| **G006** | No magic numbers — use named constants | 58× |
-| **G023** | Flat namespaces only (`Flux`, `Flux.API`, `Flux.APP`, `Flit`) | structural |
-| **G025** | Translation arrays must be the same length in all language files | rare, critical |
-| **G026** | Re-run APIGen and commit `.gen.cs` after any `Flux.API` public change | rare, critical |
-| **G033** | No duplicate test IDs or translation IDs | rare, critical |
-
-## Medium
-
-| Rule | Description | Frequency |
-|------|-------------|-----------|
-| **G007** | No consecutive blank lines (max 1) | 44× |
-| **G008** | Space before `(` in control-flow and calls | 41× |
-| **G009** | Region headers: 100 chars for type regions, 70 chars for segments | 29× |
-| **G010** | Collection expressions `[]` and spread `..` | 28× |
-| **G011** | Remove dead/commented-out code; use full-sentence TODO with case number | 24× |
-| **G012** | Copyright header in every new file | 24× |
-| **G013** | Pass method references directly, not lambda wrappers | 22× |
-| **G014** | `#nullable enable` in every new `.cs` file | 21× |
-| **G015** | String range `[..]` not `.Substring()` | 19× |
-| **G017** | Target-typed `new()` — omit type when left-hand side makes it clear | ~12× |
-| **G019** | Opening brace on same line (K&R style) | 12× |
-| **G022** | `[SkipIfParallel]` for tests touching shared/static state | 9× |
-| **G024** | File-scoped namespaces `namespace Flux;` not braced form | structural |
-
-## Low
-
-| Rule | Description | Frequency |
-|------|-------------|-----------|
-| **G016** | Remove unused `using` statements; system usings before user usings | 13× |
-| **G018** | Never write `private` — it is the default | 6× |
-| **G020** | Expression-bodied members for single-expression bodies | 5× |
-| **G021** | Pattern matching: `is`, `is not`, `or`, `and`, `switch` expression | 5× |
-| **G027** | Singleton: `Lazy<T>` thread-safe or `??=` idiom; property named `It` | 5× |
-| **G028** | Spread `..` instead of `.ToList()` | rare |
-| **G029** | `using` order: system before user namespaces | rare |
-| **G030** | Local functions at end of method after `// Helper ...` delimiter | rare |
-| **G031** | Don't repeat namespace/class name in member names | rare |
-| **G032** | Backing fields placed immediately after their property or method | rare |
-| **G034** | `switch` expression over long `if-else` chains | rare |
-| **G035** | Extract repeated conditions (3+) to a named property or variable | rare |
-
----

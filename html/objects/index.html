@@ -1,0 +1,694 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@400;600&family=Nunito+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="../res/bento.css">
+  <link rel="stylesheet" href="../res/site.css">
+  <link rel="stylesheet" href="../res/tree.css">
+  <link rel="stylesheet" href="../res/sibling.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  
+  <title>Object Reference</title>
+</head>
+<body id="site-body" onload="sLoaded()">
+    <header id="site-header">
+        <div id="header-logo"><img src="../img/logo.png" width="123" height="50" /></div>
+        <div><p>FROBOT</p></div>
+    </header>
+    <div id="site-main">
+        <nav id="site-nav">
+            <div class="treesite">
+ <ul>
+  <li><button class="tree blank"></button><a href="../index.html">FluxRobot</a></li>
+  <li><button class="tree blank"></button><a href="../file-tree.html">Relevant File Tree</a></li>
+  <li><button class="tree blank"></button><a href="../window-layout.html">Window Layout</a></li>
+  <li><button class="tree blank"></button><a href="../sequences.html">Functional Sequences</a></li>
+  <li><button class="tree blank"></button><a href="../beginner.html">Beginner’s Guide</a></li>
+  <li><button class="tree blank"></button><a href="../nori-guide.html">Practical Mental Model: Nori</a></li>
+  <li>
+   <button class="tree open"></button>
+   <a class="active" href="index.html">Object Reference</a>
+   <ul>
+    <li><button class="tree blank"></button><a href="scene-objects.html">Scene Objects</a></li>
+   </ul>
+  </li>
+  <li><button class="tree blank"></button><a href="../flow/index.html">Flowcharts</a></li>
+ </ul>
+</div>
+
+        </nav>
+        <div id="site-nav-right">
+            <nav id="site-crumb">
+ <div>
+  <button>
+   <img src="../res/home.png">
+  </button>
+ </div>
+ <div>
+  <a href="index.html">Object Reference</a>
+ </div>
+</nav>
+
+            <div id="site-crumb-below">
+                <div id="site-toc-left">
+                    <article id="article">
+                        <h1>Object Reference</h1>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Code-level explanations with file and line references. All line numbers
+are approximate and refer to the files after the drawing-mode cleanup.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scene_graph_rendering">Scene graph &amp; rendering</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Entry point:</strong> <code>RobotScene.cs</code> — constructor, <code>~line 10</code></p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Scene3 (Nori)
+└── Root: GroupVN
+    ├── MechanismVN(mMech)          renders all link meshes from mechanism.curl
+    ├── mGripper: XfmVN             applies mTip.Xfm; child is an empty GroupVN
+    │                               (placeholder for a future tool mesh)
+    ├── mBoxXfm: XfmVN              applies BoxWorldXfm; child is mBoxVN
+    │   └── mBoxVN: Mesh3VN         the blue/red 200×200×200 mm obstacle cube
+    ├── mTriGroup: GroupVN          collision triangles (Mesh3VN added dynamically)
+    ├── TcpVN                       streaming; draws TCP axes + ring
+    ├── InfoVN                      streaming; draws text overlay (pose + angles)
+    └── TraceVN                     Nori singleton; output from Lib.Trace()</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>Streaming = true</code> on <code>TcpVN</code> and <code>InfoVN</code> means Lux redraws them every
+frame. All other nodes are event-driven: call <code>node.Redraw()</code> or modify
+a property that internally calls it.</p>
+</div>
+<div class="paragraph">
+<p><code>MechanismVN</code> is a Nori built-in that knows how to traverse the
+mechanism tree and render each mesh at its current world transform. When
+<code>JValue</code> changes on any joint, the mechanism tree updates its transforms
+and <code>MechanismVN</code> picks up the change automatically.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_mouse_event_pipeline">Mouse event pipeline</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Entry point:</strong> <code>Nori.Host.WPF</code> — <code>SceneManipulator</code> (created in
+<code>OnLuxReady</code>)</p>
+</div>
+<div class="paragraph">
+<p><code>new SceneManipulator()</code> connects Nori’s internal mouse/keyboard
+observables (<code>Hub.Mouse</code>, <code>Hub.Keyboard</code>) to the active <code>Lux.UIScene</code>.
+It handles: - Left-drag → orbit - Right-drag / middle-drag → pan -
+Scroll wheel → zoom - Left-click on a mesh → <code>scene.Picked(obj)</code></p>
+</div>
+<div class="paragraph">
+<p><strong>Pick callback:</strong> <code>RobotScene.Picked(object obj)</code> —
+<code>RobotScene.cs ~line 81</code></p>
+</div>
+<div class="paragraph">
+<p>Nori resolves which drawable object (mesh) was clicked and passes it as
+<code>obj</code>. FRobot checks:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">public override void Picked(object obj) {
+    if (obj = mBoxMesh)          { SnapToFace(Lux.PickPos); return; }
+    foreach (var tri in mTris)
+        if (obj = tri.Mesh)      { SnapToTriNode(tri.P1, tri.Normal); return; }
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>Lux.PickPos</code> is the 3-D world position of the click on the mesh
+surface.</p>
+</div>
+<div class="paragraph">
+<p>No mouse input is handled in <code>MainWindow.xaml.cs</code> or
+<code>RobotWindow.xaml.cs</code>. All 3-D interaction goes through <code>Picked()</code>.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_mechanism_hierarchy_from_mechanism_curl">Mechanism hierarchy from <code>mechanism.curl</code></h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>mechanism.curl</code> is a binary Nori serialisation format. You cannot read
+it in a text editor, but after <code>Mechanism.Load()</code> you get an in-memory
+tree:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>root (mMech)
+ ├── S  (Swing)     JMin=-180  JMax=+180
+ ├── L  (Lower)     JMin=-90   JMax=+155
+ ├── U  (Upper)     JMin=-170  JMax=+190
+ ├── R  (Rotation)  JMin=-180  JMax=+180
+ ├── B  (Bend)      JMin=-135  JMax=+135
+ ├── T  (Twist)     JMin=-360  JMax=+360
+ └── Tip            no joint; the end-effector frame</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Actual limit values come from the file, not from code. The code reads
+them:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// RobotScene.cs constructor
+for (int i = 0; i &lt; 6; i++) {
+    mMin[i] = mJoints[i].JMin;
+    mMax[i] = mJoints[i].JMax;
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The limits are then passed to <code>RBRSolver</code> so it rejects solutions that
+would violate joint limits.</p>
+</div>
+<div class="paragraph">
+<p>Each node also carries one or more mesh objects (<code>m.Mesh</code>, <code>m.CMesh</code>)
+used for rendering and collision. <code>m.CMesh</code> is a simplified collision
+mesh; <code>m.Mesh</code> is the full visual mesh.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_socket_chain_and_forward_kinematics">Socket chain and forward kinematics</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nori’s <code>Mechanism</code> computes FK via a <strong>socket chain</strong>: each node stores
+its transform relative to its parent’s socket. When you set <code>JValue</code> on
+a joint, the node rotates around the socket axis by that angle, and all
+children’s world transforms update accordingly.</p>
+</div>
+<div class="paragraph">
+<p>From code’s perspective, you just write:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">mJoints[i].JValue = angleDegrees.D2R();</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>…and <code>mTip.Xfm</code> returns the updated end-effector world transform on the
+next read. The chain computation happens inside Nori.</p>
+</div>
+<div class="paragraph">
+<p><code>CoordSystem.World * mTip.Xfm</code> multiplies the identity world frame
+by the tip’s local-to-world matrix, giving a <code>CoordSystem</code> with: -
+<code>.Org</code> — tip origin in world mm - <code>.VecX</code>, <code>.VecY</code>, <code>.VecZ</code> — tip
+orientation axes in world space</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_mboxobb_the_obstacle_box"><code>mBoxOBB</code> — the obstacle box</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Construction</strong> (<code>RobotScene.cs</code> constructor):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">var boxPoly = Poly.Rectangle(-100, -100, 100, 100);   // 200×200 square in XY
+mBoxMesh    = Mesh3.Extrude([boxPoly], 200,
+                  Matrix3.Translation(0, 0, -100),     // start Z at -100
+                  ETess.Medium);                        // triangulation quality
+mBoxOBB     = OBBTree.From(mBoxMesh);
+mBoxVN      = new Mesh3VN(mBoxMesh) { Mode = EShadeMode.Glass, Color = Color4.Blue };
+mBoxXfm     = new XfmVN(BoxWorldXfm, mBoxVN);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The result is a 200×200×200 mm cube centred at the origin. <code>XfmVN</code>
+positions it at <code>(BX, BY, BZ)</code> from the ViewModel via:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">Matrix3 BoxWorldXfm =&gt; Matrix3.Translation(ViewModel.BX, ViewModel.BY, ViewModel.BZ);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Collision check</strong> — each frame (or after every pose change):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">var boxOBBW = mBoxOBB.With(BoxWorldXfm);   // transform OBB to world space
+using var bc = OBBCollider.Borrow();
+bool hit = bc.Check(linkOBBWorld, boxOBBW);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>OBBTree.With(matrix)</code> returns a new OBBTree in the given space without
+modifying the original — important because <code>mBoxOBB</code> is reused every
+frame.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_forward_kinematics_works">How forward kinematics works</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Trigger:</strong> user drags a joint slider → <code>JointSliderModel.Value</code> setter</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// JointSliderModel.cs
+public double Value {
+    get =&gt; mMech.JValue;
+    set { mMech.JValue = value; Notify(); mOnChanged(); }  // mOnChanged = OnFK
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong><code>RobotScene.OnFK()</code></strong> (<code>RobotScene.cs ~line 141</code>):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">void OnFK() {
+    var tipCs = CoordSystem.World * mTip.Xfm;          // read FK result
+    var off   = mTcpOffset;
+    var tcp   = tipCs.Org                              // tip flange position
+              + tipCs.VecX * off.X                    // + wrist-X component
+              + tipCs.VecY * off.Y                    // + wrist-Y component
+              + tipCs.VecZ * off.Z;                   // + wrist-Z component
+    var (rx, ry, rz) = MatrixToEuler(tipCs);
+    ViewModel.SetIKDisplay(tcp.X, tcp.Y, tcp.Z + LJointZ, rx, ry, rz);
+    foreach (var js in ViewModel.Joints) js.Refresh(); // push new angles to sliders
+    mGripper.Xfm = mTip.Xfm;
+    CheckCollisions();
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>&#43; LJointZ</code> (= 565 mm) is added back to Z because the IK display
+uses world Z (from the floor), while the solver works in the L-joint
+frame (above the shoulder).</p>
+</div>
+<div class="paragraph">
+<p><strong><code>MatrixToEuler()</code></strong> — extracts Rx, Ry, Rz from an orientation matrix
+using the X-then-Y convention:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// cs is the coordinate system of the tip
+double ry = Asin(Clamp(cs.VecZ.X, -1, 1));
+double rx = (Abs(Cos(ry)) &gt; 1e-6) ? Atan2(-cs.VecZ.Y, cs.VecZ.Z) : 0;
+double rz = (Abs(Cos(ry)) &gt; 1e-6) ? Atan2(-cs.VecY.X, cs.VecX.X) : 0;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This is the inverse of the construction used in <code>ComputeIK()</code>:
+<code>cs *= Rot(X, Rx) * Rot(Y, Ry) * Rot(Z, Rz)</code>.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_how_inverse_kinematics_works">How inverse kinematics works</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Trigger:</strong> user moves an IK slider → <code>ViewModel.X</code> (or Y/Z/Rx/Ry/Rz)
+setter → <code>IKChanged?.Invoke()</code> → <code>ComputeIK()</code></p>
+</div>
+<div class="paragraph">
+<p><strong><code>RobotScene.ComputeIK()</code></strong> (<code>RobotScene.cs ~line 121</code>):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">void ComputeIK() {
+    // Step 1: build TCP orientation from Euler angles (X-then-Y convention)
+    var cs  = CoordSystem.World;
+    cs     *= Matrix3.Rotation(EAxis.X, ViewModel.Rx.D2R());
+    cs     *= Matrix3.Rotation(EAxis.Y, ViewModel.Ry.D2R());
+    cs     *= Matrix3.Rotation(EAxis.Z, ViewModel.Rz.D2R());
+
+    // Step 2: work in the L-joint frame (subtract 565 mm from world Z)
+    var tcp = new Vector3(ViewModel.X, ViewModel.Y, ViewModel.Z - LJointZ);
+
+    // Step 3: back-solve wrist from TCP (subtract TCP offset in wrist frame)
+    var wrist = tcp - cs.VecX * mTcpOffset.X
+                    - cs.VecY * mTcpOffset.Y
+                    - cs.VecZ * mTcpOffset.Z;
+    mCS = cs * Matrix3.Translation(wrist);
+
+    // Step 4: analytic solver — up to 8 solutions
+    mSolver.ComputeStances(mCS.Org, mCS.VecZ, mCS.VecX);
+
+    // Step 5: apply first valid solution
+    for (int j = 0; j &lt; 8; j++) {
+        var a = mSolver.Solutions[j];
+        if (!a.OK) continue;
+        for (int i = 0; i &lt; 6; i++)
+            mJoints[i].JValue = a.GetJointAngle(i);
+        break;
+    }
+    mGripper.Xfm = mTip.Xfm;
+    CheckCollisions();
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>RBRSolver</code> is a Nori closed-form 6-DOF solver. It is initialised with
+the arm’s Denavit-Hartenberg parameters:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// (a1, a2, a3, d1, d4, d6)  — link lengths and offsets in mm
+new RBRSolver(150, 770, 0, 0, 1016, 175, mMin, mMax)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Solutions that violate joint limits are flagged <code>OK = false</code> and
+skipped.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_tcp_model_and_orientation_behavior">TCP model and orientation behavior</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>TCP offset</strong> — the vector from the wrist flange to the actual tool tip,
+expressed in the <em>wrist frame</em> (not world frame):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">Vector3 mTcpOffset = new(0, 0, -50);   // default: 50 mm along negative wrist-Z</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The offset can be changed via the TCP Offset dialog (⚙ toolbar button).</p>
+</div>
+<div class="paragraph">
+<p><strong>In <code>ComputeIK</code>:</strong><br>
+To find the wrist position from a desired TCP position, the offset is
+removed:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>wrist = tcp − R × offset</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>where <code>R</code> is the 3×3 rotation part of the TCP orientation matrix.</p>
+</div>
+<div class="paragraph">
+<p><strong>In <code>OnFK</code>:</strong><br>
+The reverse — to find TCP from the current wrist:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>tcp = tipOrigin + VecX×off.X + VecY×off.Y + VecZ×off.Z</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong><code>TcpVN.Draw()</code></strong> (<code>RobotScene.cs ~line 330</code>) renders three arrows: - Red
+arrow along wrist <code>VecX</code> - Green arrow along wrist <code>VecY</code> - Blue arrow
+along wrist <code>VecZ</code></p>
+</div>
+<div class="paragraph">
+<p>Each arrow is 180 mm long with a 30 mm arrowhead. A white circle of
+radius 20 mm is drawn in the VecX-VecY plane at the TCP position.</p>
+</div>
+<div class="paragraph">
+<p><strong>Orientation convention:</strong> rotations are applied in X-then-Y order. -
+<code>Rx = -90°</code> means the tool points downward (Z-axis of tool = −world-Y).
+- <code>Ry = ±90°</code> tilts the tool toward ±X.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_face_snapping_behavior">Face snapping behavior</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Entry:</strong> <code>RobotScene.Picked(object obj)</code> when user clicks the box mesh.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">void SnapToFace(Point3 hit) {
+    double rx = hit.X - ViewModel.BX;   // relative to box centre
+    double ry = hit.Y - ViewModel.BY;
+    double rz = hit.Z - ViewModel.BZ;
+    double ax = Abs(rx), ay = Abs(ry), az = Abs(rz);
+
+    double newRx, newRy, newRz;
+    if      (ax &gt;= ay &amp;&amp; ax &gt;= az)   // X face
+        (newRx, newRy, newRz) = rx &gt; 0 ? (0, 90, 0) : (0, -90, 0);
+    else if (ay &gt;= az)               // Y face
+        (newRx, newRy, newRz) = ry &gt; 0 ? (-90, 0, 0) : (90, 0, 0);
+    else                             // Z face
+        (newRx, newRy, newRz) = rz &gt; 0 ? (0, 0, 0) : (180, 0, 0);
+
+    ViewModel.SetIKPose(hit.X, hit.Y, hit.Z, newRx, newRy, newRz);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The click position on the face is used as the new TCP target position.
+The orientation is set to one of the six canonical poses so that the
+tool approaches the face perpendicularly (VecZ points outward from the
+face).</p>
+</div>
+<div class="paragraph">
+<p><strong>Triangle snapping</strong> (<code>SnapToTriNode</code>) calls <code>NormalToEuler(normal)</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">static (double Rx, double Ry, double Rz) NormalToEuler(Vector3 n) {
+    double ry    = Asin(Clamp(n.X, -1, 1));
+    double cosRy = Cos(ry);
+    double rx    = Abs(cosRy) &gt; 1e-6 ? Atan2(-n.Y, n.Z) : 0;
+    return (rx * R2D, ry * R2D, 0);
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This finds Rx, Ry such that after applying <code>Rot(X,Rx)*Rot(Y,Ry)</code>,
+the tool’s VecZ axis equals <code>normal</code>. Rz is always set to 0.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_robot_control_ui_structure">Robot control UI structure</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong><code>RobotWindow.xaml</code></strong> is a <code>ScrollViewer</code> containing a single
+<code>StackPanel</code> with five sections:</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_1_forward_kinematics_itemscontrol_bound_to_viewmodel_joints">1. Forward Kinematics — <code>ItemsControl</code> bound to <code>ViewModel.Joints</code></h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>ViewModel.Joints</code> is a <code>JointSliderModel[]</code> populated in
+<code>RobotScene</code> constructor from <code>mMech.EnumTree()</code> (only joints where
+<code>m.Joint != EJoint.None</code>).</p>
+</div>
+<div class="paragraph">
+<p>The <code>DataTemplate</code> creates one slider row per entry. The slider’s
+<code>Value</code> property two-way-binds to <code>JointSliderModel.Value</code>, which in
+turn reads/writes <code>mMech.JValue</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_2_inverse_kinematics_six_fixed_slider_rows_home_button">2. Inverse Kinematics — six fixed slider rows &#43; Home button</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>Command="{Binding HomeCommand}"</code> →
+<code>DelegateCommand) =&gt; HomeRequested?.Invoke(</code> →
+<code>RobotScene.GoHome()</code> → <code>ViewModel.SetIKPose(home coordinates)</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_3_obstacle_bx_by_bz">3. Obstacle — BX / BY / BZ</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Slider binds to <code>ViewModel.BX</code> etc., setter fires <code>BoxChanged</code> →
+<code>UpdateBox()</code> → <code>mBoxXfm.Xfm = BoxWorldXfm</code> &#43; <code>CheckCollisions()</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_4_script">4. Script</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>LoadCommand</code> → reads file into <code>mScript</code> list.<br>
+<code>AddCommand</code> → appends current IK pose as a line to the script file.<br>
+<code>PlayCommand</code> → toggles <code>mPlayTimer</code>; each tick calls <code>TickScript()</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_5_collision_triangles">5. Collision Triangles</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>ObservableCollection&lt;CollisionTriVM&gt;</code> bound to
+<code>ItemsControl</code>.<br>
+WPF updates the list automatically when items are added/removed because
+<code>ObservableCollection</code> implements <code>INotifyCollectionChanged</code>.</p>
+</div>
+<div class="paragraph">
+<p>Each <code>CollisionTriVM</code> holds a <code>RemoveCommand</code> that captures a closure
+over the specific <code>CollisionTri</code> object:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">new CollisionTriVM(t.Name, t.Group, brush, () =&gt; RemoveTri(t))</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_tool_model">Tool model</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Currently FRobot does not render a tool mesh. The &#8220;gripper&#8221; in the
+scene is:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">mGripper = new XfmVN(Matrix3.Identity, new GroupVN([]));</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>An <code>XfmVN</code> wrapping an <strong>empty</strong> <code>GroupVN</code>. It exists as a placeholder so
+that a tool mesh can be added later without restructuring the scene
+graph.</p>
+</div>
+<div class="paragraph">
+<p>After each FK or IK solve, the gripper transform is updated:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">mGripper.Xfm = mTip.Xfm;   // gripper follows the tip frame</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>To add a tool mesh, replace the inner <code>GroupVN([])</code> with a <code>Mesh3VN</code>
+built from the tool’s geometry, or add child nodes to the <code>GroupVN</code>. The
+<code>XfmVN</code> will automatically position and orient the child at the tip
+frame.</p>
+</div>
+</div>
+</div>
+
+                    </article>
+                </div>
+                <div id="site-toc-holder">
+                    <aside id="site-toc">
+ <h3>Contents</h3>
+ <ul>
+  <li level="1">
+   <a href="#_scene_graph_rendering">Scene graph &amp; rendering</a>
+  </li>
+  <li level="1">
+   <a href="#_mouse_event_pipeline">Mouse event pipeline</a>
+  </li>
+  <li level="1">
+   <a href="#_mechanism_hierarchy_from_mechanism_curl">Mechanism hierarchy from <code>mechanism.curl</code></a>
+  </li>
+  <li level="1">
+   <a href="#_socket_chain_and_forward_kinematics">Socket chain and forward kinematics</a>
+  </li>
+  <li level="1">
+   <a href="#_mboxobb_the_obstacle_box"><code>mBoxOBB</code> — the obstacle box</a>
+  </li>
+  <li level="1">
+   <a href="#_how_forward_kinematics_works">How forward kinematics works</a>
+  </li>
+  <li level="1">
+   <a href="#_how_inverse_kinematics_works">How inverse kinematics works</a>
+  </li>
+  <li level="1">
+   <a href="#_tcp_model_and_orientation_behavior">TCP model and orientation behavior</a>
+  </li>
+  <li level="1">
+   <a href="#_face_snapping_behavior">Face snapping behavior</a>
+  </li>
+  <li level="1">
+   <a href="#_robot_control_ui_structure">Robot control UI structure</a>
+  </li>
+  <li level="1">
+   <a href="#_1_forward_kinematics_itemscontrol_bound_to_viewmodel_joints">1. Forward Kinematics — <code>ItemsControl</code> bound to <code>ViewModel.Joints</code></a>
+  </li>
+  <li level="1">
+   <a href="#_2_inverse_kinematics_six_fixed_slider_rows_home_button">2. Inverse Kinematics — six fixed slider rows &#43; Home button</a>
+  </li>
+  <li level="1">
+   <a href="#_3_obstacle_bx_by_bz">3. Obstacle — BX / BY / BZ</a>
+  </li>
+  <li level="1">
+   <a href="#_4_script">4. Script</a>
+  </li>
+  <li level="1">
+   <a href="#_5_collision_triangles">5. Collision Triangles</a>
+  </li>
+  <li level="1">
+   <a href="#_tool_model">Tool model</a>
+  </li>
+ </ul>
+</aside>
+
+                </div>
+            </div>
+            <nav class="pagination">
+ <span class="prev"><a href="../nori-guide.html">Practical Mental Model: Nori</a></span>
+ <span class="next"><a href="scene-objects.html">Scene Objects</a></span>
+</nav>
+
+        </div>
+        <div id="searchbox">
+          <input id="searchinput" type="search" placeholder="Search... (Key: F)" autocomplete="false" size="30" />
+          <ul id="results"></ul>
+        </div>
+    </div>
+    <footer id="site-footer">
+        <div class="left">
+            <p>&nbsp;&nbsp;Copyright &copy; 2023 by Metamation. All rights reserved.</p>
+        </div>
+        <div class="middle"></div>
+        <div class="right">
+            <p>Compiled by Bento</p>
+            <img src="../res/bento.png" />
+        </div>
+    </footer>
+    <script>
+        // The baseLevel is used to assign the search result pages.
+        var baseLevel = "../res".replace("res", "");
+    </script>
+    <script src="https://unpkg.com/lunr/lunr.js"></script>
+    <script src="../res/index.js"></script>
+    <script src="../res/files.js"></script>
+    <script src="../res/site.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.3/highlight.min.js"></script>
+  <script>
+    if (!hljs.initHighlighting.called) {
+      hljs.initHighlighting.called = true
+      ;[].slice.call(document.querySelectorAll('pre.highlight > code[data-lang]')).forEach(function (el) { hljs.highlightBlock(el) })
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,444 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@400;600&family=Nunito+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="res/bento.css">
+  <link rel="stylesheet" href="res/site.css">
+  <link rel="stylesheet" href="res/tree.css">
+  <link rel="stylesheet" href="res/sibling.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  
+  <title>FluxRobot</title>
+</head>
+<body id="site-body" onload="sLoaded()">
+    <header id="site-header">
+        <div id="header-logo"><img src="img/logo.png" width="123" height="50" /></div>
+        <div><p>FROBOT</p></div>
+    </header>
+    <div id="site-main">
+        <nav id="site-nav">
+            <div class="treesite">
+ <ul>
+  <li><button class="tree blank"></button><a class="active" href="index.html">FluxRobot</a></li>
+  <li><button class="tree blank"></button><a href="file-tree.html">Relevant File Tree</a></li>
+  <li><button class="tree blank"></button><a href="window-layout.html">Window Layout</a></li>
+  <li><button class="tree blank"></button><a href="sequences.html">Functional Sequences</a></li>
+  <li><button class="tree blank"></button><a href="beginner.html">Beginner’s Guide</a></li>
+  <li>
+   <button class="tree closed"></button>
+   <a href="code/index.html">Code details</a>
+   <ul class="hide">
+    <li><button class="tree blank"></button><a href="code/nori-guide.html">Practical Mental Model: Nori</a></li>
+    <li><button class="tree blank"></button><a href="code/function.html">Object Reference</a></li>
+    <li><button class="tree blank"></button><a href="code/scene-objects.html">Scene Objects</a></li>
+   </ul>
+  </li>
+  <li><button class="tree blank"></button><a href="flow/index.html">Flowcharts</a></li>
+ </ul>
+</div>
+
+        </nav>
+        <div id="site-nav-right">
+            <nav id="site-crumb">
+ <div>
+  <button>
+   <img src="res/home.png">
+  </button>
+ </div>
+ <div>
+  <a href="index.html">FluxRobot</a>
+ </div>
+</nav>
+
+            <div id="site-crumb-below">
+                <div id="site-toc-left">
+                    <article id="article">
+                        <h1>FluxRobot</h1>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>This file provides guidance to FRobot repository</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_drive_mappings">Drive Mappings</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Two mapped drives are essential:</p>
+</div>
+<div class="paragraph">
+<p>|==
+|Drive |Points to |Purpose
+|<code>F:</code> |<code>C:\Work\FRobot\</code> |Project root alias used in scripts
+|<code>N:</code> |Nori library root |External rendering/framework dependency
+|==</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_main_screen_and_naming">Main screen and naming</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><span class="image"><img src="img/main.png" alt="main"></span></p>
+</div>
+<div class="sect2">
+<h3 id="_robot_mechanics">Robot mechanics:</h3>
+<div class="paragraph">
+<p>Floor
+  │
+  ▼  S — Swing (rotates the whole arm left/right around vertical axis)
+  │  L — Lower arm (tilts from the base)
+  │  U — Upper arm (elbow)
+  │  R — Rotation (forearm twist)
+  │  B — Bend (wrist bend)
+  │  T — Twist (wrist rotation)
+  │
+  ▼ Tip  (end effector / tool flange)
+     └─ TCP  (Tool Center Point — the actual tool tip, offset from the flange)
+    └─ Part</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_coordinate_systems_beside_tcp">Coordinate systems beside TCP</h3>
+<div class="paragraph">
+<p>new AxesVN { Name = "Dropoff"..   GetOrigin = () &#8658; new Point3 (ViewModel.BX, ViewModel.BY, ViewM
+odel.BZ + 100) },
+new AxesVN { Name = "Pickup", GetOrigin = () &#8658; new Point3 (700, -200, 700) },</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_dialog_box">Dialog box</h3>
+<div class="sect3">
+<h4 id="_robot_dialog">Robot dialog</h4>
+<div class="paragraph">
+<p>The main dialog is the Robot dialog with
+===== Slider fields
+- Forward kinemattics
+- Inverse kinematics</p>
+</div>
+<div class="sect4">
+<h5 id="_scripting_dialogs">Scripting Dialogs</h5>
+
+</div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="_collision_groups">Collision groups</h3>
+<div class="paragraph">
+<p>The main collision groups are</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_build_run">Build &amp; Run</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-powershell hljs" data-lang="powershell"># Build
+dotnet build "FRobot\FRobot.csproj" -c Debug
+
+# Launch
+Start-Process "Bin\FRobot.exe"
+
+# Run unit tests
+dotnet run --project Test\FRobot.Test.csproj
+
+# Run UI automation tests (requires FRobot.exe in Bin\)
+dotnet run --project UITest\FRobot.UITest.csproj</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Kill a running instance before rebuilding:
+<code>Stop-Process -Name FRobot -Force -ErrorAction SilentlyContinue</code></p>
+</div>
+<div class="paragraph">
+<p>The app reads resources via the <code>pix:</code> virtual prefix. In dev it
+resolves to <code>F:\Wad\</code> (raw files); in release it reads from
+<code>Bin\FRobot.wad</code> (zipped). <code>F:</code> and <code>C:\Work\FRobot\</code>
+are the same location, so editing either path edits the same files.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_architecture">Architecture</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>FRobot is a WPF .NET 10 2D CAD drawing editor. It has four projects:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong><code>FRobot/</code></strong> — main WPF application (<code>WinExe</code>, outputs to <code>Bin\</code>)</p>
+</li>
+<li>
+<p><strong><code>Test/</code></strong> — unit tests using the Nori <code>TestRunner</code> framework
+(GLFW-hosted)</p>
+</li>
+<li>
+<p><strong><code>UITest/</code></strong> — FlaUI-based UI automation tests (standalone console exe)</p>
+</li>
+<li>
+<p><strong><code>Tools/Console/</code></strong> — headless CLI tool</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>External dependency <strong>Nori</strong> (<code>N:</code> drive) provides: rendering (<code>Lux</code>),
+geometry types (<code>Point2</code>, <code>Poly</code>, etc.), the <code>Lib</code> service locator,
+reactive streams (<code>Hub.Mouse</code>, <code>Hub.Keyboard</code>), and the test runner
+infrastructure.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_command_widget_system">Command &amp; Widget System</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Every toolbar action is an <code>ECmd</code> enum value (defined in
+<code>DwgEdit/DwgCmds.cs</code>).</p>
+</div>
+<div class="paragraph">
+<p><strong>Interactive commands</strong> (need mouse/keyboard input) → subclass <code>Widget</code>,
+add <code>[DwgCmd(ECmd.Xxx)]</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">[DwgCmd (ECmd.Line)]
+class LineWidget : Widget { ... }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>DwgHub.WidgetMap</code> auto-discovers all concrete <code>Widget</code> subclasses at
+startup via reflection.</p>
+</div>
+<div class="paragraph">
+<p><strong>Non-interactive commands</strong> (dialog or one-shot) → add a static method
+with <code>[DwgCmd(ECmd.Xxx)]</code> to <code>DwgCmds</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">[DwgCmd (ECmd.LayerSetup)]
+static void LaunchLayersDlg (Dwg2 dwg) =&gt; LayersDlg.Launch (dwg);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>DwgHub.MethodMap</code> discovers these the same way.</p>
+</div>
+<div class="paragraph">
+<p>To add a new command: add a value to <code>ECmd</code>, add an entry to
+<code>Wad/Modes/cmd-prompt.txt</code> (name &#43; input labels &#43; step
+prompts), add the icon PNG to <code>Wad/Modes/</code>, add it to
+<code>Wad/Modes/manifest.txt</code>, then implement either a <code>Widget</code> subclass or a
+<code>DwgCmds</code> method.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_toolbar_manifest">Toolbar Manifest</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>Wad/Modes/manifest.txt</code> drives the toolbar. Syntax:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Line          ← regular button (ECmd name)
+              ← blank line = horizontal separator
+&gt;Group:A,B    ← group button that opens a popup with buttons A and B
+;Comment      ← ignored</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_resource_system_pix_prefix">Resource System (<code>pix:</code> prefix)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>Lib.OpenRead("pix:Modes/Line.png")</code> resolves via the registered
+<code>FileStmLocator</code> or <code>ZipStmLocator</code>. In <code>MainWindow</code> constructor:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">var file = Lib.GetLocalFile ("FRobot.wad");
+Lib.Register (File.Exists (file) ? new ZipStmLocator ("pix:", file) : new FileStmLocator ("pix:", "F:/Wad/"));</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_input_bar_widget_fields">Input Bar &amp; Widget Fields</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>When a widget activates, <code>DwgHub.Widget</code> is set and <code>Widget.Activate()</code>
+scans the widget’s fields for attributes: - <code>[Textbox(n)]</code> →
+text input box - <code>[Checkbox(n)]</code> → checkbox -
+<code>[Choice(n)]</code> → combobox (field must be an enum type) -
+<code>[Click(n)]</code> → set by the nth mouse click (field must be
+<code>Point2</code>)</p>
+</div>
+<div class="paragraph">
+<p><code>cmd-prompt.txt</code> provides the label text and phase prompts for each
+command’s input boxes.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_flaui_ui_tests">FlaUI UI Tests</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>UITest/AppDriver.cs</code> launches <code>Bin\FRobot.exe</code> and exposes
+<code>MainWindow</code>. Toolbar buttons are identified by <code>AutomationId</code> = the
+<code>ECmd</code> name string (e.g. <code>"Line"</code>). Group buttons use the group name as
+<code>AutomationId</code>. Images inside buttons have <code>AutomationProperties.Name</code> =
+command name.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">[UIFixture (1, "My Tests")]
+class MyTests {
+   [UITest (1, "description")]
+   void Test () {
+      using var driver = new AppDriver ();
+      var btn = driver.MainWindow.FindFirstDescendant (driver.CF.ByAutomationId ("Line"));
+      // ...
+   }
+}</code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_code_style">Code Style</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Full rules in <code>CODING.md</code>. Key points:</p>
+</div>
+<div class="paragraph">
+<p><strong>File header</strong> (box-art comment, every <code>.cs</code> file):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// ╔═╦╗
+// ║╬╠╬╦╗ FileName.cs
+// ║╔╣╠║╣ One-line description
+// ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Naming</strong>: private instance fields <code>mName</code>, private static fields
+<code>sName</code>, enums prefixed <code>E</code>, interfaces prefixed <code>I</code>. Never write
+<code>private</code> explicitly.</p>
+</div>
+<div class="paragraph">
+<p><strong>Formatting</strong>: 3-space indent, K&amp;R braces, space before <code>(</code> in calls
+(<code>MyMethod (arg)</code>), file-scoped namespaces.</p>
+</div>
+<div class="paragraph">
+<p><strong>Top-level types</strong> wrapped in <code>#region class Foo ----</code> (padded to
+column 100). Internal segments (<code>// Properties</code>, <code>// Methods</code>, etc.) use
+<code>// ─────</code> or <code>#region</code> padded to column 70, in fixed order:
+Constructors → Properties → Methods → Implementation → Fields.</p>
+</div>
+<div class="paragraph">
+<p><strong>C# idioms</strong>: prefer collection expressions <code>[]</code>, spread
+<code>[.. expr]</code>, target-typed <code>new ()</code>, pattern matching, <code>switch</code>
+expressions, <code>?.</code>/<code>??=</code>. Use <code>=&gt;</code> for single-expression members.</p>
+</div>
+</div>
+</div>
+
+                    </article>
+                </div>
+                <div id="site-toc-holder">
+                    <aside id="site-toc">
+ <h3>Contents</h3>
+ <ul>
+  <li level="1">
+   <a href="#_drive_mappings">Drive Mappings</a>
+  </li>
+  <li level="1">
+   <a href="#_main_screen_and_naming">Main screen and naming</a>
+  </li>
+  <li level="2">
+   <a href="#_robot_mechanics">Robot mechanics:</a>
+  </li>
+  <li level="2">
+   <a href="#_coordinate_systems_beside_tcp">Coordinate systems beside TCP</a>
+  </li>
+  <li level="2">
+   <a href="#_dialog_box">Dialog box</a>
+  </li>
+  <li level="2">
+   <a href="#_collision_groups">Collision groups</a>
+  </li>
+  <li level="1">
+   <a href="#_build_run">Build &amp; Run</a>
+  </li>
+  <li level="1">
+   <a href="#_architecture">Architecture</a>
+  </li>
+  <li level="1">
+   <a href="#_command_widget_system">Command &amp; Widget System</a>
+  </li>
+  <li level="1">
+   <a href="#_toolbar_manifest">Toolbar Manifest</a>
+  </li>
+  <li level="1">
+   <a href="#_resource_system_pix_prefix">Resource System (<code>pix:</code> prefix)</a>
+  </li>
+  <li level="1">
+   <a href="#_input_bar_widget_fields">Input Bar &amp; Widget Fields</a>
+  </li>
+  <li level="1">
+   <a href="#_flaui_ui_tests">FlaUI UI Tests</a>
+  </li>
+  <li level="1">
+   <a href="#_code_style">Code Style</a>
+  </li>
+ </ul>
+</aside>
+
+                </div>
+            </div>
+            <nav class="pagination">
+ <span class="next"><a href="file-tree.html">Relevant File Tree</a></span>
+</nav>
+
+        </div>
+        <div id="searchbox">
+          <input id="searchinput" type="search" placeholder="Search... (Key: F)" autocomplete="false" size="30" />
+          <ul id="results"></ul>
+        </div>
+    </div>
+    <footer id="site-footer">
+        <div class="left">
+            <p>&nbsp;&nbsp;Copyright &copy; 2023 by Metamation. All rights reserved.</p>
+        </div>
+        <div class="middle"></div>
+        <div class="right">
+            <p>Compiled 2026.06.27 by Bento 56</p>
+            <img src="res/bento.png" />
+        </div>
+    </footer>
+    <script>
+        // The baseLevel is used to assign the search result pages.
+        var baseLevel = "res".replace("res", "");
+    </script>
+    <script src="https://unpkg.com/lunr/lunr.js"></script>
+    <script src="res/index.js"></script>
+    <script src="res/files.js"></script>
+    <script src="res/site.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.3/highlight.min.js"></script>
+  <script>
+    if (!hljs.initHighlighting.called) {
+      hljs.initHighlighting.called = true
+      ;[].slice.call(document.querySelectorAll('pre.highlight > code[data-lang]')).forEach(function (el) { hljs.highlightBlock(el) })
+    }
+  </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 // ╔═╦╗
 // ║╬╠╬╦╗ VersionInjector
-// ║╔╣╠║╣ Utility tool which extracts build number from FApp and updates the ISS file
+// ║╔╣╠║╣ Utility tool which extracts build number from FRobot and updates the ISS file
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
 using System.Text.RegularExpressions;
 namespace VersionInjector;
@@ -15,9 +15,9 @@ class Program {
       UpdateISS ();
    }
 
-   // Fetches the build number from AssemblyInfo.cs in FApp
+   // Fetches the build number from AssemblyInfo.cs in FRobot
    static bool GetPixVersion () { // Match format: AssemblyVersion ("2025.11.12.0")
-      var match = Regex.Match (File.ReadAllText (@"F:\FApp\Properties\AssemblyInfo.cs"),
+      var match = Regex.Match (File.ReadAllText (@"F:\FRobot\Properties\AssemblyInfo.cs"),
                         @"AssemblyVersion\s*\(""\d{4}.\d{2}\.(\d+)\.(\d+)""\)");
       if (match.Success) {
          sBuild = int.Parse (match.Groups[1].Value);

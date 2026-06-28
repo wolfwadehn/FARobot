@@ -1,0 +1,349 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@400;600&family=Nunito+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="res/bento.css">
+  <link rel="stylesheet" href="res/site.css">
+  <link rel="stylesheet" href="res/tree.css">
+  <link rel="stylesheet" href="res/sibling.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  
+  <title>Functional Sequences</title>
+</head>
+<body id="site-body" onload="sLoaded()">
+    <header id="site-header">
+        <div id="header-logo"><img src="img/logo.png" width="123" height="50" /></div>
+        <div><p>FROBOT</p></div>
+    </header>
+    <div id="site-main">
+        <nav id="site-nav">
+            <div class="treesite">
+ <ul>
+  <li><button class="tree blank"></button><a href="index.html">FluxRobot</a></li>
+  <li><button class="tree blank"></button><a href="file-tree.html">Relevant File Tree</a></li>
+  <li><button class="tree blank"></button><a href="window-layout.html">Window Layout</a></li>
+  <li><button class="tree blank"></button><a class="active" href="sequences.html">Functional Sequences</a></li>
+  <li><button class="tree blank"></button><a href="beginner.html">Beginner’s Guide</a></li>
+  <li>
+   <button class="tree closed"></button>
+   <a href="code/index.html">Code details</a>
+   <ul class="hide">
+    <li><button class="tree blank"></button><a href="code/nori-guide.html">Practical Mental Model: Nori</a></li>
+    <li><button class="tree blank"></button><a href="code/function.html">Object Reference</a></li>
+    <li><button class="tree blank"></button><a href="code/scene-objects.html">Scene Objects</a></li>
+   </ul>
+  </li>
+  <li><button class="tree blank"></button><a href="flow/index.html">Flowcharts</a></li>
+ </ul>
+</div>
+
+        </nav>
+        <div id="site-nav-right">
+            <nav id="site-crumb">
+ <div>
+  <button>
+   <img src="res/home.png">
+  </button>
+ </div>
+ <div>
+  <a href="sequences.html">Functional Sequences</a>
+ </div>
+</nav>
+
+            <div id="site-crumb-below">
+                <div id="site-toc-left">
+                    <article id="article">
+                        <h1>Functional Sequences</h1>
+<div id="preamble">
+<div class="sectionbody">
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_1_robot_mode_startup_sequence">1. Robot mode startup sequence</h2>
+<div class="sectionbody">
+<div class="literalblock">
+<div class="content">
+<pre>App.MainWindow()  ──────────────────────────────────────────────────
+  Lib.Init()
+  Lib.Register(ZipStmLocator / FileStmLocator)   ← asset path setup
+  InitializeComponent()                          ← parses MainWindow.xaml
+  mContent.Child = WPFHost.Init(this, OnLuxReady)
+  mToolbarHost.Child = new Toolbar()
+  VNode.RegisterAssembly(...)
+  Loaded → App.CheckExpired()                    ← version expiry nag
+
+WPFHost.Init() (Nori internal) ─────────────────────────────────────
+  Creates OpenGL surface
+  Fires callback → OnLuxReady()
+
+OnLuxReady() ───────────────────────────────────────────────────────
+  new SceneManipulator()    ← wires mouse pan / orbit / zoom to Lux
+  toolbar.AddButton("⊕")   ← "Show Robot Controls" button appears
+  OpenRobot()
+
+OpenRobot() ────────────────────────────────────────────────────────
+  new RobotScene()
+    Mechanism.Load("N:/Wad/FanucX/mechanism.curl")
+    mTip    = FindChild("Tip")
+    mJoints = FindChild("S","L","U","R","B","T")
+    new RBRSolver(arm dimensions, joint limits)
+    Lib.Tessellate = FastTess2D.Process
+    Build box mesh + OBBTree
+    new RobotViewModel()
+    Build per-link OBBTrees (for collision)
+    Wire ViewModel events → ComputeIK / UpdateBox / GoHome / ...
+    ViewModel.SetIKPose(home position)  ──→ triggers first IK solve
+    Start DispatcherTimer (script playback, disabled)
+    BgrdColor = Gray(64)
+    Bound = (-1200,-1200,0, 1200,1200,1500)
+    Root = GroupVN([MechanismVN, gripper XfmVN, box XfmVN,
+                   tri group, TcpVN, InfoVN, TraceVN])
+
+  Lux.UIScene = mRobotScene        ← 3-D scene goes live
+  new RobotWindow()
+  Position window at right edge of work area
+  mRobotWin.Show()
+  mRobotWin.SetScene(mRobotScene)  ← DataContext = ViewModel
+  toolbar.AddButton("⚙")           ← TCP Offset button appears</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The first <code>ComputeIK()</code> call (triggered by <code>SetIKPose</code>) runs the
+analytic solver and sets the six joint angles to the home position, so
+the arm appears posed correctly the moment the window opens.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_2_forward_kinematics_slider_sequence">2. Forward kinematics slider sequence</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The user drags a joint slider (e.g. the <strong>B</strong> joint) in the robot sidebar.</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>RobotWindow.xaml  Slider.Value changes
+  │  (two-way binding)
+  ▼
+JointSliderModel.Value setter
+  mMech.JValue = value          ← writes angle into Mechanism node
+  Notify("Value")               ← slider TextBox refreshes
+  mOnChanged()                  ← the Action delegate stored at construction
+
+  ▼
+RobotScene.OnFK()
+  tipCs = CoordSystem.World * mTip.Xfm    ← Nori forward-kinematics result
+  tcp   = tipCs.Org + offset vector        ← apply wrist→TCP offset
+  (rx, ry, rz) = MatrixToEuler(tipCs)     ← matrix → Euler angles (degrees)
+  ViewModel.SetIKDisplay(tcp, rx,ry,rz)   ← updates IK textboxes,
+                                             does NOT fire IKChanged
+  foreach joint → js.Refresh()            ← pushes updated angles to FK sliders
+  mGripper.Xfm = mTip.Xfm                ← moves gripper VNode
+  CheckCollisions()
+
+  ▼
+CheckCollisions()
+  For each (linkMesh, linkOBB):
+    wLink = linkOBB.With(m.Xfm)         ← link in world space
+    linkHit |= Collider.Check(wLink, boxOBBW)
+    for each collision triangle:
+      groupHit[tri.Group] |= Collider.Check(wLink, tri.OBB)
+    m.IsColliding = linkHit             ← link turns red in scene
+  mBoxVN.Color = boxHit ? Red : Blue
+  tri.IsColliding = groupHit[tri.Group] ← whole group turns red together</pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Key insight:</strong> <code>SetIKDisplay</code> updates the IK sliders to reflect the new
+TCP position after a joint drag, but it does <em>not</em> call <code>ComputeIK()</code>,
+so there is no round-trip IK → FK → IK loop.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_3_collision_triangle_workflow">3. Collision triangle workflow</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_3a_add_triangle">3a. Add triangle</h2>
+<div class="sectionbody">
+<div class="literalblock">
+<div class="content">
+<pre>User clicks "Add Triangle…" in sidebar
+  ▼
+RobotWindow.OnAddTriangle()
+  new TriangleDialog()
+  dlg.ShowDialog()        ← modal; user fills Name, Group, P1/P2/P3
+
+  if result is true:
+    mScene.AddTri(dlg.TriName, dlg.Group, dlg.P1, dlg.P2, dlg.P3)
+
+RobotScene.AddTri(name, group, p1, p2, p3)
+  GroupColor(group)
+    → looks up or assigns color from sGroupPalette
+    → also assigns WPF color for the sidebar label
+  new CollisionTri(name, group, color, p1, p2, p3)
+    normal = (p2-p1) × (p3-p1)  (normalized)
+    Mesh   = Mesh3Builder([p1,p2,p3]).Build()
+    OBB    = OBBTree.From(Mesh)
+    VN     = new Mesh3VN(Mesh) { Mode=Glass, Color=color }
+  mTris.Add(tri)
+  mTriGroup.Add(tri.VN)        ← makes triangle visible in 3-D scene
+  CheckCollisions()            ← immediate collision check
+  RefreshTriList()             ← rebuilds ViewModel.Triangles list
+
+RefreshTriList()
+  ViewModel.Triangles.Clear()
+  for each tri in mTris:
+    ViewModel.Triangles.Add(
+      new CollisionTriVM(name, group, wpfBrush, () =&gt; RemoveTri(tri)))
+  ← WPF ItemsControl updates sidebar list automatically</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The triangle can also be added via CSV import in the dialog. CSV
+columns: <code>Name, Group, P1X, P1Y, P1Z, P2X, P2Y, P2Z, P3X, P3Y, P3Z</code>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_3b_remove_a_triangle">3b. Remove a triangle</h2>
+<div class="sectionbody">
+<div class="literalblock">
+<div class="content">
+<pre>User clicks "×" next to a triangle in the sidebar
+  ▼
+CollisionTriVM.RemoveCommand (DelegateCommand)
+  → lambda captured in RefreshTriList: () =&gt; RemoveTri(tri)
+
+RobotScene.RemoveTri(tri)
+  mTris.Remove(tri)
+  mTriGroup.Remove(tri.VN)     ← triangle disappears from scene
+  tri.IsColliding = false      ← resets mesh color before discarding
+  CheckCollisions()
+  RefreshTriList()</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_3c_collision_grouping_behavior">3c. Collision grouping behavior</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Triangles are assigned to named <strong>groups</strong> (e.g. <code>"Group1"</code>, <code>"Box"</code>). The
+group name is a free-form string entered in the Add Triangle dialog.</p>
+</div>
+<div class="paragraph">
+<p><strong>Color assignment:</strong><br>
+The first triangle in a group sets the group’s color from
+<code>sGroupPalette</code> (<code>[Cyan, Green, Yellow]</code>). All subsequent
+triangles in the same group share that color. The built-in box is always
+blue.</p>
+</div>
+<div class="paragraph">
+<p><strong>Collision propagation:</strong><br>
+In <code>CheckCollisions()</code>, the code tracks hit state <em>per group</em>, not per
+triangle:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">Dictionary&lt;string, bool&gt; groupHit = [];
+foreach (var tri in mTris) groupHit.TryAdd(tri.Group, false);
+
+foreach (var (m, linkOBB) in mLinkOBBs) {
+    ...
+    foreach (var tri in mTris)
+        if (bc.Check(wLink, tri.OBB.With(Matrix3.Identity)))
+            groupHit[tri.Group] = true;
+    m.IsColliding = linkHit;
+}
+
+foreach (var tri in mTris)
+    tri.IsColliding = groupHit[tri.Group];   // whole group turns red</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>This means: if <em>any</em> triangle in a group is hit, <em>all</em> triangles in that
+group turn red simultaneously. This is intentional — it lets you mark a
+conceptual object (e.g. &#8220;workpiece&#8221;) with multiple triangles and see
+the whole object react as a unit.</p>
+</div>
+</div>
+</div>
+
+                    </article>
+                </div>
+                <div id="site-toc-holder">
+                    <aside id="site-toc">
+ <h3>Contents</h3>
+ <ul>
+  <li level="1">
+   <a href="#_1_robot_mode_startup_sequence">1. Robot mode startup sequence</a>
+  </li>
+  <li level="1">
+   <a href="#_2_forward_kinematics_slider_sequence">2. Forward kinematics slider sequence</a>
+  </li>
+  <li level="1">
+   <a href="#_3_collision_triangle_workflow">3. Collision triangle workflow</a>
+  </li>
+  <li level="1">
+   <a href="#_3a_add_triangle">3a. Add triangle</a>
+  </li>
+  <li level="1">
+   <a href="#_3b_remove_a_triangle">3b. Remove a triangle</a>
+  </li>
+  <li level="1">
+   <a href="#_3c_collision_grouping_behavior">3c. Collision grouping behavior</a>
+  </li>
+ </ul>
+</aside>
+
+                </div>
+            </div>
+            <nav class="pagination">
+ <span class="prev"><a href="window-layout.html">Window Layout</a></span>
+ <span class="next"><a href="beginner.html">Beginner’s Guide</a></span>
+</nav>
+
+        </div>
+        <div id="searchbox">
+          <input id="searchinput" type="search" placeholder="Search... (Key: F)" autocomplete="false" size="30" />
+          <ul id="results"></ul>
+        </div>
+    </div>
+    <footer id="site-footer">
+        <div class="left">
+            <p>&nbsp;&nbsp;Copyright &copy; 2023 by Metamation. All rights reserved.</p>
+        </div>
+        <div class="middle"></div>
+        <div class="right">
+            <p>Compiled by Bento</p>
+            <img src="res/bento.png" />
+        </div>
+    </footer>
+    <script>
+        // The baseLevel is used to assign the search result pages.
+        var baseLevel = "res".replace("res", "");
+    </script>
+    <script src="https://unpkg.com/lunr/lunr.js"></script>
+    <script src="res/index.js"></script>
+    <script src="res/files.js"></script>
+    <script src="res/site.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.3/highlight.min.js"></script>
+  <script>
+    if (!hljs.initHighlighting.called) {
+      hljs.initHighlighting.called = true
+      ;[].slice.call(document.querySelectorAll('pre.highlight > code[data-lang]')).forEach(function (el) { hljs.highlightBlock(el) })
+    }
+  </script>
+</body>
+</html>

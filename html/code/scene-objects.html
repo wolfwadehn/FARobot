@@ -1,0 +1,196 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@400;600&family=Nunito+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="../res/bento.css">
+  <link rel="stylesheet" href="../res/site.css">
+  <link rel="stylesheet" href="../res/tree.css">
+  <link rel="stylesheet" href="../res/sibling.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  
+  <title>Scene Objects</title>
+</head>
+<body id="site-body" onload="sLoaded()">
+    <header id="site-header">
+        <div id="header-logo"><img src="../img/logo.png" width="123" height="50" /></div>
+        <div><p>FROBOT</p></div>
+    </header>
+    <div id="site-main">
+        <nav id="site-nav">
+            <div class="treesite">
+ <ul>
+  <li><button class="tree blank"></button><a href="../index.html">FluxRobot</a></li>
+  <li><button class="tree blank"></button><a href="../file-tree.html">Relevant File Tree</a></li>
+  <li><button class="tree blank"></button><a href="../window-layout.html">Window Layout</a></li>
+  <li><button class="tree blank"></button><a href="../sequences.html">Functional Sequences</a></li>
+  <li><button class="tree blank"></button><a href="../beginner.html">Beginner’s Guide</a></li>
+  <li>
+   <button class="tree open"></button>
+   <a href="index.html">Code details</a>
+   <ul>
+    <li><button class="tree blank"></button><a href="nori-guide.html">Practical Mental Model: Nori</a></li>
+    <li><button class="tree blank"></button><a href="function.html">Object Reference</a></li>
+    <li><button class="tree blank"></button><a class="active" href="scene-objects.html">Scene Objects</a></li>
+   </ul>
+  </li>
+  <li><button class="tree blank"></button><a href="../flow/index.html">Flowcharts</a></li>
+ </ul>
+</div>
+
+        </nav>
+        <div id="site-nav-right">
+            <nav id="site-crumb">
+ <div>
+  <button>
+   <img src="../res/home.png">
+  </button>
+ </div>
+ <div>
+  <a href="index.html">Code details</a>
+ </div>
+ <div>/</div>
+ <div>
+  <a href="scene-objects.html">Scene Objects</a>
+ </div>
+</nav>
+
+            <div id="site-crumb-below">
+                <div id="site-toc-left">
+                    <article id="article">
+                        <h1>Scene Objects</h1>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Named objects in the FRobot 3D scene.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_obstacle">Obstacle</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>|==
+|Property |Value
+|Size |200 × 200 × 200 mm
+|Default position (BX, BY, BZ) |700, 300, 700 mm
+|Color |Blue (glass shading)
+|Adjustable via |BX / BY / BZ sliders in the sidebar
+|==</p>
+</div>
+<div class="paragraph">
+<p>The obstacle is a box centred on its BX/BY/BZ origin. Local Z runs from
+−100 mm (bottom face) to &#43;100 mm (top face).</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_coordinate_systems">Coordinate Systems</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Drawn as RGB axes (X = red, Y = green, Z = blue, arrow length 180 mm).
+Defined as <code>AxesVN</code> instances in <code>RobotScene.cs</code>.</p>
+</div>
+<div class="paragraph">
+<p>|==
+|Name |Position |Notes
+|<strong>Dropoff</strong> |(BX, BY, BZ &#43; 100) |Centre of the obstacle’s top face.
+Tracks the obstacle as it moves.</p>
+</div>
+<div class="paragraph">
+<p>|<strong>Pickup</strong> |(700, −200, 700) |Fixed world position.
+|==</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_adding_a_new_coordinate_system">Adding a new coordinate system</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">new AxesVN { Name = "MyFrame", GetOrigin = () =&gt; new Point3 (x, y, z) }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Add the line to the <code>Root</code> <code>GroupVN</code> in <code>RobotScene.cs</code> and rebuild.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_tcp_frame">TCP Frame</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Drawn by <code>TcpVN</code> — not an <code>AxesVN</code> instance and has no <code>Name</code>. Shows the
+current tool-centre-point position and orientation, updated every frame
+from the IK/FK solver.</p>
+</div>
+</div>
+</div>
+
+                    </article>
+                </div>
+                <div id="site-toc-holder">
+                    <aside id="site-toc">
+ <h3>Contents</h3>
+ <ul>
+  <li level="1">
+   <a href="#_obstacle">Obstacle</a>
+  </li>
+  <li level="1">
+   <a href="#_coordinate_systems">Coordinate Systems</a>
+  </li>
+  <li level="1">
+   <a href="#_adding_a_new_coordinate_system">Adding a new coordinate system</a>
+  </li>
+  <li level="1">
+   <a href="#_tcp_frame">TCP Frame</a>
+  </li>
+ </ul>
+</aside>
+
+                </div>
+            </div>
+            <nav class="pagination">
+ <span class="prev"><a href="function.html">Object Reference</a></span>
+ <span class="next"><a href="../flow/index.html">Flowcharts</a></span>
+</nav>
+
+        </div>
+        <div id="searchbox">
+          <input id="searchinput" type="search" placeholder="Search... (Key: F)" autocomplete="false" size="30" />
+          <ul id="results"></ul>
+        </div>
+    </div>
+    <footer id="site-footer">
+        <div class="left">
+            <p>&nbsp;&nbsp;Copyright &copy; 2023 by Metamation. All rights reserved.</p>
+        </div>
+        <div class="middle"></div>
+        <div class="right">
+            <p>Compiled by Bento</p>
+            <img src="../res/bento.png" />
+        </div>
+    </footer>
+    <script>
+        // The baseLevel is used to assign the search result pages.
+        var baseLevel = "../res".replace("res", "");
+    </script>
+    <script src="https://unpkg.com/lunr/lunr.js"></script>
+    <script src="../res/index.js"></script>
+    <script src="../res/files.js"></script>
+    <script src="../res/site.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.3/highlight.min.js"></script>
+  <script>
+    if (!hljs.initHighlighting.called) {
+      hljs.initHighlighting.called = true
+      ;[].slice.call(document.querySelectorAll('pre.highlight > code[data-lang]')).forEach(function (el) { hljs.highlightBlock(el) })
+    }
+  </script>
+</body>
+</html>

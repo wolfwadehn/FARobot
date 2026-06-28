@@ -1,8 +1,8 @@
 // ╔═╦╗
 // ║╬╠╬╦╗ Program.cs
-// ║╔╣╠║╣ Entry point into the FApp.Test application
+// ║╔╣╠║╣ Entry point into the FRobot.Test application
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
-namespace FApp.Testing;
+namespace FRobot.Testing;
 
 #region class Program ------------------------------------------------------------------------------
 /// <summary>Entry point of the Nori.Test application</summary>
@@ -17,9 +17,9 @@ class Program {
    Program (string[] args) {
       Lib.Init ();
       GLFWHost.Init (() => { });
-      mWindow = new Window (500, 500, "FApp Tests", Window.EFlags.None);
+      mWindow = new Window (500, 500, "FRobot Tests", Window.EFlags.None);
       Lib.Register (new FileStmLocator ("pix:", "F:/Wad/"));
-      Lib.AddNamespace ("FApp");
+      Lib.AddNamespace ("FRobot");
       TestRunner.RunDiff = true;
       TestRunner.ParseArgs (args);
       foreach (var arg in args) {

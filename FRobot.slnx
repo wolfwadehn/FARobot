@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/Nori/">
+    <Project Path="N:/Core/Nori.Core.csproj" />
+    <Project Path="N:/Lux/Nori.Lux.csproj" />
+    <Project Path="N:/Host/WPF/Nori.Host.WPF.csproj" />
+    <Project Path="N:/Host/GLFW/Nori.Host.GLFW.csproj" />
+    <Project Path="N:/Tools/Generate/Nori.Gen.csproj" />
+  </Folder>
+  <Project Path="FRobot/FRobot.csproj" />
+  <Project Path="Test/FRobot.Test.csproj" />
+  <Project Path="Tools/Console/FRobot.Con.csproj" />
+</Solution>

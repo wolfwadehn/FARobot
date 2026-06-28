@@ -1,17 +1,17 @@
 // ╔═╦╗
 // ║╬╠╬╦╗ Console.cs
-// ║╔╣╠║╣ Entry point into the FApp.Console application
+// ║╔╣╠║╣ Entry point into the FRobot.Console application
 // ╚╝╚╩╩╝ ──────────────────────────────────────────────────────────────────────────────────────────
 using System.Diagnostics.CodeAnalysis;
 using static System.Reflection.BindingFlags;
 using Nori;
 using System.Text;
 using System.ComponentModel.DataAnnotations;
-namespace FApp.Con;
+namespace FRobot.Con;
 
 #region class Program ------------------------------------------------------------------------------
 static class Program {
-   /// <summary>Entry point into the FApp.Con program</summary>
+   /// <summary>Entry point into the FRobot.Con program</summary>
    static void Main (string[] args) {
       if (args.Length == 0) Help ();
       else {
@@ -26,16 +26,16 @@ static class Program {
    [ConsoleCommand]
    static void Help () {
       Console.WriteLine ($$"""
-         FApp.Con: FApp console utility for developers.
+         FRobot.Con: FRobot console utility for developers.
          Build {{Build}}.
 
-         CLEAN           - Do basic cleanup on all the FApp source files
-         COUNT           - Do a line-count on FApp source files
-         COVERAGE        - Compute coverage % for FApp.Test
+         CLEAN           - Do basic cleanup on all the FRobot source files
+         COUNT           - Do a line-count on FRobot source files
+         COVERAGE        - Compute coverage % for FRobot.Test
          HELP            - Display this help message
          NEXTID          - Gets the next available test Id
-         OPTIMIZE 0/1    - Turns optimization on / off for all FApp projects
-         XMLDOC 0/1      - Turns XML documentation on / off for all FApp projects
+         OPTIMIZE 0/1    - Turns optimization on / off for all FRobot projects
+         XMLDOC 0/1      - Turns XML documentation on / off for all FRobot projects
          PNGCRUSH folder - Optimize all PNG files in the given folder
          """);
       Environment.Exit (0);

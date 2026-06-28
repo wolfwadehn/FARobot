@@ -1,0 +1,71 @@
+# Relevant File Tree
+
+Only files that exist today are listed.
+Files under `obj/` (build artefacts) are omitted.
+
+```
+F:\
+├── FRobot\                              Application project
+│   │
+│   ├── App.xaml                       WPF application definition
+│   ├── App.xaml.cs                    Entry point; global error handlers; CheckExpired()
+│   ├── Globals.cs                     Global `using` directives for the whole project
+│   ├── Util.cs                        Small WPF helpers: MakeBrush, ParseDouble
+│   │
+│   ├── MainWindow.xaml                Root window XAML: menu, toolbar host, GL viewport
+│   ├── MainWindow.xaml.cs             Menu handlers; OpenRobot(); toolbar wiring
+│   │
+│   ├── RobotScene.cs                  ★ 3-D scene: FK/IK solver, collision, TCP, VNodes
+│   ├── RobotViewModel.cs              ★ Bindable state (INotifyPropertyChanged); DelegateCommand;
+│   │                                    JointSliderModel; CollisionTriVM; DoubleConverter
+│   ├── RobotWindow.xaml               Floating sidebar XAML: all sliders, buttons, triangle list
+│   ├── RobotWindow.xaml.cs            Thin code-behind: SetScene(); OnAddTriangle()
+│   │
+│   ├── TcpOffsetDialog.xaml           TCP offset editor layout
+│   ├── TcpOffsetDialog.xaml.cs        Reads/writes Vector3 offset; validates input
+│   │
+│   ├── TriangleDialog.xaml            Add-triangle dialog layout
+│   ├── TriangleDialog.xaml.cs         Name/Group/P1-P3 input; CSV import/export
+│   │
+│   ├── FRobot.csproj                    SDK-style project; targets net10.0-windows
+│   │
+│   └── Widgets\
+│       └── Toolbar.cs                 StackPanel subclass; AddButton() helper
+│
+├── Wad\                               Assets loaded at runtime via Lib/ZipStmLocator
+│   └── FanucX\
+│       └── mechanism.curl             Robot arm definition (loaded by RobotScene)
+│
+├── Bin\                               Build output (FRobot.dll, FRobot.exe, freetype.dll)
+├── FRobot.slnx                          Solution file
+└── Docu\                              ← you are here
+    ├── window-layout.md
+    ├── file-tree.md
+    ├── sequences.md
+    ├── beginner-guide.md
+    ├── nori-guide.md
+    └── expert-reference.md
+```
+
+## Role summary
+
+| File | What it owns |
+|------|-------------|
+| `RobotScene.cs` | All 3-D logic: loading the mechanism, solving IK, checking collisions, building the scene graph, handling pick events |
+| `RobotViewModel.cs` | All bindable data: IK pose, joint angles, obstacle position, script path, triangle list; also helper classes `JointSliderModel`, `CollisionTriVM`, `DelegateCommand`, `DoubleConverter` |
+| `RobotWindow.xaml` | The entire sidebar UI layout; no logic |
+| `RobotWindow.xaml.cs` | Two methods only: `SetScene()` and `OnAddTriangle()` |
+| `MainWindow.xaml.cs` | Application shell: starts the robot, opens dialogs, handles menu clicks |
+| `Toolbar.cs` | One method: `AddButton()` |
+
+## External dependencies (Nori)
+
+These assemblies are referenced from `N:\` and provide the rendering and geometry
+infrastructure.  You do not need to read their source to work on FRobot, but you
+will call their types frequently:
+
+| Assembly | Key types used |
+|----------|---------------|
+| `Nori.Core` | `Lib`, `Mechanism`, `Poly`, `Mesh3`, `OBBTree`, `OBBCollider`, `CoordSystem`, `Matrix3`, `Vector3`, `Point3`, `Color4`, `Bound3` |
+| `Nori.Lux` | `Lux`, `Scene3`, `VNode`, `GroupVN`, `XfmVN`, `Mesh3VN`, `MechanismVN`, `TraceVN`, `ETess`, `EShadeMode` |
+| `Nori.Host.WPF` | `WPFHost`, `SceneManipulator`, `Hub` (mouse/keyboard observables) |

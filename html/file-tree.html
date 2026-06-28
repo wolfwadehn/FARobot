@@ -1,0 +1,221 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@400;600&family=Nunito+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="res/bento.css">
+  <link rel="stylesheet" href="res/site.css">
+  <link rel="stylesheet" href="res/tree.css">
+  <link rel="stylesheet" href="res/sibling.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  
+  <title>Relevant File Tree</title>
+</head>
+<body id="site-body" onload="sLoaded()">
+    <header id="site-header">
+        <div id="header-logo"><img src="img/logo.png" width="123" height="50" /></div>
+        <div><p>FROBOT</p></div>
+    </header>
+    <div id="site-main">
+        <nav id="site-nav">
+            <div class="treesite">
+ <ul>
+  <li><button class="tree blank"></button><a href="index.html">FluxRobot</a></li>
+  <li><button class="tree blank"></button><a class="active" href="file-tree.html">Relevant File Tree</a></li>
+  <li><button class="tree blank"></button><a href="window-layout.html">Window Layout</a></li>
+  <li><button class="tree blank"></button><a href="sequences.html">Functional Sequences</a></li>
+  <li><button class="tree blank"></button><a href="beginner.html">Beginner’s Guide</a></li>
+  <li>
+   <button class="tree closed"></button>
+   <a href="code/index.html">Code details</a>
+   <ul class="hide">
+    <li><button class="tree blank"></button><a href="code/nori-guide.html">Practical Mental Model: Nori</a></li>
+    <li><button class="tree blank"></button><a href="code/function.html">Object Reference</a></li>
+    <li><button class="tree blank"></button><a href="code/scene-objects.html">Scene Objects</a></li>
+   </ul>
+  </li>
+  <li><button class="tree blank"></button><a href="flow/index.html">Flowcharts</a></li>
+ </ul>
+</div>
+
+        </nav>
+        <div id="site-nav-right">
+            <nav id="site-crumb">
+ <div>
+  <button>
+   <img src="res/home.png">
+  </button>
+ </div>
+ <div>
+  <a href="file-tree.html">Relevant File Tree</a>
+ </div>
+</nav>
+
+            <div id="site-crumb-below">
+                <div id="site-toc-left">
+                    <article id="article">
+                        <h1>Relevant File Tree</h1>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Only files that exist today are listed. Files under <code>obj/</code> (build
+artefacts) are omitted.</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>F:\
+├── FRobot\                              Application project
+│   │
+│   ├── App.xaml                       WPF application definition
+│   ├── App.xaml.cs                    Entry point; global error handlers; CheckExpired()
+│   ├── Globals.cs                     Global `using` directives for the whole project
+│   ├── Util.cs                        Small WPF helpers: MakeBrush, ParseDouble
+│   │
+│   ├── MainWindow.xaml                Root window XAML: menu, toolbar host, GL viewport
+│   ├── MainWindow.xaml.cs             Menu handlers; OpenRobot(); toolbar wiring
+│   │
+│   ├── RobotScene.cs                  ★ 3-D scene: FK/IK solver, collision, TCP, VNodes
+│   ├── RobotViewModel.cs              ★ Bindable state (INotifyPropertyChanged); DelegateCommand;
+│   │                                    JointSliderModel; CollisionTriVM; DoubleConverter
+│   ├── RobotWindow.xaml               Floating sidebar XAML: all sliders, buttons, triangle list
+│   ├── RobotWindow.xaml.cs            Thin code-behind: SetScene(); OnAddTriangle()
+│   │
+│   ├── TcpOffsetDialog.xaml           TCP offset editor layout
+│   ├── TcpOffsetDialog.xaml.cs        Reads/writes Vector3 offset; validates input
+│   │
+│   ├── TriangleDialog.xaml            Add-triangle dialog layout
+│   ├── TriangleDialog.xaml.cs         Name/Group/P1-P3 input; CSV import/export
+│   │
+│   ├── FRobot.csproj                    SDK-style project; targets net10.0-windows
+│   │
+│   └── Widgets\
+│       └── Toolbar.cs                 StackPanel subclass; AddButton() helper
+│
+├── Wad\                               Assets loaded at runtime via Lib/ZipStmLocator
+│   └── FanucX\
+│       └── mechanism.curl             Robot arm definition (loaded by RobotScene)
+│
+├── Bin\                               Build output (FRobot.dll, FRobot.exe, freetype.dll)
+├── FRobot.slnx                          Solution file
+└── Docu\                              ← you are here
+    ├── window-layout.md
+    ├── file-tree.md
+    ├── sequences.md
+    ├── beginner-guide.md
+    ├── nori-guide.md
+    └── expert-reference.md</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_role_summary">Role summary</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>|==
+|File |What it owns
+|<code>RobotScene.cs</code> |All 3-D logic: loading the mechanism, solving IK,
+checking collisions, building the scene graph, handling pick events</p>
+</div>
+<div class="paragraph">
+<p>|<code>RobotViewModel.cs</code> |All bindable data: IK pose, joint angles, obstacle
+position, script path, triangle list; also helper classes
+<code>JointSliderModel</code>, <code>CollisionTriVM</code>, <code>DelegateCommand</code>,
+<code>DoubleConverter</code></p>
+</div>
+<div class="paragraph">
+<p>|<code>RobotWindow.xaml</code> |The entire sidebar UI layout; no logic</p>
+</div>
+<div class="paragraph">
+<p>|<code>RobotWindow.xaml.cs</code> |Two methods only: <code>SetScene()</code> and
+<code>OnAddTriangle()</code></p>
+</div>
+<div class="paragraph">
+<p>|<code>MainWindow.xaml.cs</code> |Application shell: starts the robot, opens
+dialogs, handles menu clicks</p>
+</div>
+<div class="paragraph">
+<p>|<code>Toolbar.cs</code> |One method: <code>AddButton()</code>
+|==</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_external_dependencies_nori">External dependencies (Nori)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>These assemblies are referenced from <code>N:\</code> and provide the rendering
+and geometry infrastructure. You do not need to read their source to
+work on FRobot, but you will call their types frequently:</p>
+</div>
+<div class="paragraph">
+<p>|==
+|Assembly |Key types used
+|<code>Nori.Core</code> |<code>Lib</code>, <code>Mechanism</code>, <code>Poly</code>, <code>Mesh3</code>, <code>OBBTree</code>,
+<code>OBBCollider</code>, <code>CoordSystem</code>, <code>Matrix3</code>, <code>Vector3</code>, <code>Point3</code>, <code>Color4</code>,
+<code>Bound3</code></p>
+</div>
+<div class="paragraph">
+<p>|<code>Nori.Lux</code> |<code>Lux</code>, <code>Scene3</code>, <code>VNode</code>, <code>GroupVN</code>, <code>XfmVN</code>, <code>Mesh3VN</code>,
+<code>MechanismVN</code>, <code>TraceVN</code>, <code>ETess</code>, <code>EShadeMode</code></p>
+</div>
+<div class="paragraph">
+<p>|<code>Nori.Host.WPF</code> |<code>WPFHost</code>, <code>SceneManipulator</code>, <code>Hub</code> (mouse/keyboard
+observables)
+|==</p>
+</div>
+</div>
+</div>
+
+                    </article>
+                </div>
+                <div id="site-toc-holder">
+                    <aside id="site-toc">
+ <h3>Contents</h3>
+ <ul>
+  <li level="1">
+   <a href="#_role_summary">Role summary</a>
+  </li>
+  <li level="1">
+   <a href="#_external_dependencies_nori">External dependencies (Nori)</a>
+  </li>
+ </ul>
+</aside>
+
+                </div>
+            </div>
+            <nav class="pagination">
+ <span class="prev"><a href="index.html">FluxRobot</a></span>
+ <span class="next"><a href="window-layout.html">Window Layout</a></span>
+</nav>
+
+        </div>
+        <div id="searchbox">
+          <input id="searchinput" type="search" placeholder="Search... (Key: F)" autocomplete="false" size="30" />
+          <ul id="results"></ul>
+        </div>
+    </div>
+    <footer id="site-footer">
+        <div class="left">
+            <p>&nbsp;&nbsp;Copyright &copy; 2023 by Metamation. All rights reserved.</p>
+        </div>
+        <div class="middle"></div>
+        <div class="right">
+            <p>Compiled by Bento</p>
+            <img src="res/bento.png" />
+        </div>
+    </footer>
+    <script>
+        // The baseLevel is used to assign the search result pages.
+        var baseLevel = "res".replace("res", "");
+    </script>
+    <script src="https://unpkg.com/lunr/lunr.js"></script>
+    <script src="res/index.js"></script>
+    <script src="res/files.js"></script>
+    <script src="res/site.js"></script>
+
+    
+</body>
+</html>

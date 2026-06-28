@@ -1,0 +1,474 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@400;600&family=Nunito+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="res/bento.css">
+  <link rel="stylesheet" href="res/site.css">
+  <link rel="stylesheet" href="res/tree.css">
+  <link rel="stylesheet" href="res/sibling.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  
+  <title>Beginner’s Guide</title>
+</head>
+<body id="site-body" onload="sLoaded()">
+    <header id="site-header">
+        <div id="header-logo"><img src="img/logo.png" width="123" height="50" /></div>
+        <div><p>FROBOT</p></div>
+    </header>
+    <div id="site-main">
+        <nav id="site-nav">
+            <div class="treesite">
+ <ul>
+  <li><button class="tree blank"></button><a href="index.html">FluxRobot</a></li>
+  <li><button class="tree blank"></button><a href="file-tree.html">Relevant File Tree</a></li>
+  <li><button class="tree blank"></button><a href="window-layout.html">Window Layout</a></li>
+  <li><button class="tree blank"></button><a href="sequences.html">Functional Sequences</a></li>
+  <li><button class="tree blank"></button><a class="active" href="beginner.html">Beginner’s Guide</a></li>
+  <li>
+   <button class="tree closed"></button>
+   <a href="code/index.html">Code details</a>
+   <ul class="hide">
+    <li><button class="tree blank"></button><a href="code/nori-guide.html">Practical Mental Model: Nori</a></li>
+    <li><button class="tree blank"></button><a href="code/function.html">Object Reference</a></li>
+    <li><button class="tree blank"></button><a href="code/scene-objects.html">Scene Objects</a></li>
+   </ul>
+  </li>
+  <li><button class="tree blank"></button><a href="flow/index.html">Flowcharts</a></li>
+ </ul>
+</div>
+
+        </nav>
+        <div id="site-nav-right">
+            <nav id="site-crumb">
+ <div>
+  <button>
+   <img src="res/home.png">
+  </button>
+ </div>
+ <div>
+  <a href="beginner.html">Beginner’s Guide</a>
+ </div>
+</nav>
+
+            <div id="site-crumb-below">
+                <div id="site-toc-left">
+                    <article id="article">
+                        <h1>Beginner’s Guide</h1>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>This guide assumes you know C# basics but have not worked with WPF,
+3-D rendering, or robot kinematics before.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_1_how_to_start_reading_the_code">1. How to start reading the code</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Start here, in this order:</strong></p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><code>MainWindow.xaml</code> — see the window layout in XML<br></p>
+</li>
+<li>
+<p><code>MainWindow.xaml.cs</code> — follow <code>OnLuxReady()</code> and <code>OpenRobot()</code><br></p>
+</li>
+<li>
+<p><code>RobotWindow.xaml</code> — understand what each slider/button does<br></p>
+</li>
+<li>
+<p><code>RobotViewModel.cs</code> — understand what data exists and how it flows<br></p>
+</li>
+<li>
+<p><code>RobotScene.cs</code> — the 3-D logic that reacts to ViewModel changes</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Do not start with <code>RobotScene.cs</code> — it references Nori types
+(<code>Mechanism</code>, <code>OBBTree</code>, <code>RBRSolver</code>) that will make no sense until you
+understand what the UI is doing.</p>
+</div>
+<div class="paragraph">
+<p><strong>Useful search strategy:</strong><br>
+When you see something in the XAML like <code>{Binding X}</code>, search for
+<code>public double X</code> in <code>RobotViewModel.cs</code>. When you see a method call
+like <code>ComputeIK()</code>, search for it in <code>RobotScene.cs</code>.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_2_mental_model_wpf_data_binding">2. Mental model: WPF data binding</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>In <code>RobotWindow.xaml</code>, a slider looks like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-xml hljs" data-lang="xml">&lt;Slider Value="{Binding X, Mode=TwoWay}" .../&gt;
+&lt;TextBox Text="{Binding X, Converter={StaticResource dc}, Mode=TwoWay, ...}"/&gt;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Both the slider and the textbox are bound to the <strong>same property</strong> <code>X</code> on
+the <code>DataContext</code>. The <code>DataContext</code> is <code>RobotViewModel</code>.</p>
+</div>
+<div class="paragraph">
+<p>What &#8220;binding&#8221; means: - When code sets <code>ViewModel.X = 750</code>, WPF
+automatically moves the slider to 750 and puts <code>"750.0"</code> in the textbox.
+No manual sync code needed. - When the user moves the slider or types in
+the textbox, WPF automatically calls the <code>X</code> setter on the ViewModel. No
+event handler needed.</p>
+</div>
+<div class="paragraph">
+<p>The <code>ViewModel.X</code> setter looks like this:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">public double X { get =&gt; mX; set { mX = value; Notify(); IKChanged?.Invoke(); } }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>Notify()</code> tells WPF &#8220;the value of X changed, please update any bound
+controls&#8221;.<br>
+<code>IKChanged?.Invoke()</code> tells <code>RobotScene</code> to recompute the IK solution.</p>
+</div>
+<div class="paragraph">
+<p>This pattern — ViewModel fires <code>PropertyChanged</code>, Scene subscribes to
+events — is called <strong>MVVM</strong> (Model-View-ViewModel). The key benefit: the
+3-D scene (<code>RobotScene</code>) and the UI (<code>RobotWindow</code>) never talk to each
+other directly.</p>
+</div>
+<div class="paragraph">
+<p><strong><code>DoubleConverter</code></strong> is the <code>{StaticResource dc}</code> in the XAML. It
+converts between the <code>double</code> stored in the ViewModel and the <code>string</code>
+shown in the textbox. It accepts both <code>.</code> and <code>,</code> as the decimal
+separator, so the app works regardless of the regional settings on the
+computer.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_3_mental_model_the_robot_arm">3. Mental model: the robot arm</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The robot is a <strong>Fanuc</strong> 6-axis arm. Think of it as a chain of rigid links
+connected by rotating joints:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>Floor
+  │
+  ▼  S — Swing (rotates the whole arm left/right around vertical axis)
+  │  L — Lower arm (tilts from the base)
+  │  U — Upper arm (elbow)
+  │  R — Rotation (forearm twist)
+  │  B — Bend (wrist bend)
+  │  T — Twist (wrist rotation)
+  │
+  ▼ Tip  (end effector / tool flange)
+     └─ TCP  (Tool Center Point — the actual tool tip, offset from the flange)</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The physical description of the arm (link lengths, joint limits, mesh
+geometry) is stored in <code>mechanism.curl</code> and loaded by <code>Mechanism.Load()</code>
+at startup. You do not need to understand the file format — just know
+that after loading, you have a tree of <code>Mechanism</code> nodes you can query.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_4_mental_model_fk_vs_ik">4. Mental model: FK vs IK</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Forward Kinematics (FK)</strong> — &#8220;given joint angles, where is the tip?&#8221;</p>
+</div>
+<div class="paragraph">
+<p>You set the angles: - S = 0°, L = -45°, U = 90°, R = 0°, B = -45°, T =
+0°</p>
+</div>
+<div class="paragraph">
+<p>The Nori <code>Mechanism</code> code computes the world position and orientation of
+every link in the chain, and you can read <code>mTip.Xfm</code> to get the
+end-effector matrix.</p>
+</div>
+<div class="paragraph">
+<p>In FRobot, the six joint sliders in the sidebar do FK. Dragging one
+slider immediately moves the arm in 3-D.</p>
+</div>
+<div class="paragraph">
+<p><strong>Inverse Kinematics (IK)</strong> — &#8220;given a desired tip position and
+orientation, what joint angles are needed?&#8221;</p>
+</div>
+<div class="paragraph">
+<p>You set the target: - X = 750 mm, Y = 0 mm, Z = 1161 mm, Rx = -90°, Ry =
+0°, Rz = 0°</p>
+</div>
+<div class="paragraph">
+<p>The <code>RBRSolver</code> computes up to 8 possible sets of joint angles that can
+reach that pose. The code picks the first valid one and applies it.</p>
+</div>
+<div class="paragraph">
+<p>In FRobot, the X/Y/Z/Rx/Ry/Rz sliders in the sidebar do IK. Dragging one
+slider causes the solver to run and all six joint sliders to update.</p>
+</div>
+<div class="paragraph">
+<p><strong>The two directions are linked:</strong><br>
+After an IK solve, the joint sliders update (FK display reflects IK
+result).<br>
+After a joint drag, the IK textboxes update (IK display reflects FK
+result).<br>
+The key rule preventing an infinite loop: <code>SetIKDisplay()</code> pushes values
+to the IK sliders <em>without</em> firing <code>IKChanged</code>, so it does not trigger
+another IK solve.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_5_mental_model_the_scene_graph_and_lux">5. Mental model: the scene graph and Lux</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>Lux</strong> is the Nori rendering engine. You talk to it through the static
+<code>Lux</code> class.</p>
+</div>
+<div class="paragraph">
+<p><strong><code>Lux.UIScene</code></strong> is the currently active scene. Set it to switch what is
+rendered in the main viewport. In FRobot there is only one scene after
+startup: <code>mRobotScene</code> (a <code>Scene3</code>).</p>
+</div>
+<div class="paragraph">
+<p><strong>VNode</strong> (Visual Node) is the basic drawable unit. A scene has a tree of
+VNodes called <code>Root</code>. Each frame, Lux traverses the tree and calls: 1.
+<code>SetAttributes()</code> — sets OpenGL state (color, line width, etc.) 2.
+<code>Draw()</code> — emits geometry via <code>Lux.Lines(&#8230;&#8203;)</code>, <code>Lux.Text(&#8230;&#8203;)</code>, etc.</p>
+</div>
+<div class="paragraph">
+<p>Types of VNode in the robot scene:</p>
+</div>
+<div class="paragraph">
+<p>|==
+|VNode |What it draws
+|<code>MechanismVN</code> |All robot link meshes (the arm itself)
+|<code>XfmVN</code> |A transform wrapper — positions a child VNode using a matrix
+|<code>Mesh3VN</code> |A single 3-D mesh (the obstacle box, collision triangles)
+|<code>TcpVN</code> |Three colored arrows &#43; ring at the TCP position
+|<code>InfoVN</code> |Text overlay (TCP coordinates, joint angles) in the viewport
+|<code>TraceVN</code> |Debug text output from <code>Lib.Trace()</code>
+|<code>GroupVN</code> |Container that holds a list of child VNodes
+|==</p>
+</div>
+<div class="paragraph">
+<p>You rarely need to write new VNodes unless you want to add new visual
+elements to the 3-D scene.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_6_mental_model_the_script_player">6. Mental model: the script player</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The script is a plain text file where each line is a waypoint:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>750.0 0.0 1161.0 -90.0 0.0 0.0
+800.0 100.0 1200.0 -90.0 10.0 0.0</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Each row is: <code>X Y Z Rx Ry Rz</code> (millimetres and degrees).</p>
+</div>
+<div class="paragraph">
+<p><strong>Load</strong> reads the file into <code>mScript</code> (a
+<code>List&lt;(double X,Y,Z,Rx,Ry,Rz)&gt;</code>).<br>
+<strong>Add</strong> appends the current IK pose as a new line to the file.<br>
+<strong>Play / Stop</strong> toggles a <code>DispatcherTimer</code> that fires every 500 ms.</p>
+</div>
+<div class="paragraph">
+<p>Each timer tick calls <code>TickScript()</code>, which takes the next waypoint and
+calls <code>ViewModel.SetIKPose(&#8230;&#8203;)</code>. This triggers <code>IKChanged</code>, which runs
+<code>ComputeIK()</code>, which moves the arm.</p>
+</div>
+<div class="paragraph">
+<p>When the end of the list is reached, the timer stops and the Play button
+reverts to &#8220;Play&#8221;.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_7_mental_model_how_the_pieces_talk_to_each_other">7. Mental model: how the pieces talk to each other</h2>
+<div class="sectionbody">
+<div class="literalblock">
+<div class="content">
+<pre>RobotWindow (XAML)
+   ↕  WPF data binding (no code)
+RobotViewModel
+   ↕  C# events (IKChanged, BoxChanged, HomeRequested, ...)
+RobotScene
+   ↕  Nori API (Lux, Mechanism, RBRSolver, OBBTree, ...)
+Nori rendering engine</pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>XAML ↔ ViewModel:</strong> automatic via WPF binding — no code-behind
+needed<br></p>
+</li>
+<li>
+<p><strong>ViewModel → Scene:</strong> events (<code>IKChanged?.Invoke()</code> in each setter)<br></p>
+</li>
+<li>
+<p><strong>Scene → ViewModel:</strong> method calls (<code>ViewModel.SetIKDisplay(&#8230;&#8203;)</code>,
+<code>ViewModel.Triangles.Add(&#8230;&#8203;)</code>)<br></p>
+</li>
+<li>
+<p><strong>Scene → Nori:</strong> Nori API calls (<code>Lux.UIScene = &#8230;&#8203;</code>,
+<code>mMech.JValue = &#8230;&#8203;</code>)<br></p>
+</li>
+<li>
+<p><strong>MainWindow:</strong> acts as a wiring layer — creates the scene and window,
+opens dialogs, handles menu clicks</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The only place where <code>RobotScene</code> and <code>RobotWindow</code> ever meet directly
+is <code>RobotWindow.SetScene(scene)</code>, which sets the <code>DataContext</code>. After
+that, they communicate entirely through the ViewModel.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_8_common_stumbling_blocks">8. Common stumbling blocks</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><strong>&#8220;I changed the ViewModel but nothing happened on screen.&#8221;</strong><br>
+Check that your property calls <code>Notify()</code>. Without it, WPF does not know
+the value changed.</p>
+</div>
+<div class="paragraph">
+<p><strong>&#8220;Dragging the IK slider causes an infinite loop / stack overflow.&#8221;</strong><br>
+You used <code>SetIKPose()</code> (fires <code>IKChanged</code>) instead of <code>SetIKDisplay()</code>
+(does not) inside <code>OnFK()</code>. Use <code>SetIKDisplay</code> whenever you are pushing
+FK results into the IK display to avoid round-tripping.</p>
+</div>
+<div class="paragraph">
+<p><strong>&#8220;The arm jumps to a strange pose when I move a slider.&#8221;</strong><br>
+The IK solver may have switched to a different solution branch. The
+solver returns up to 8 solutions; the code picks the first valid one. If
+the first valid solution changes (e.g. elbow flips), the arm jumps.</p>
+</div>
+<div class="paragraph">
+<p><strong>&#8220;A new VNode I added is not visible.&#8221;</strong><br>
+Make sure you added it to <code>Root</code> (the <code>GroupVN</code>). Lux only renders nodes
+reachable from <code>Root</code>. Also check <code>SetAttributes()</code> — if you set
+<code>Lux.Color</code> with alpha = 0 the geometry is invisible.</p>
+</div>
+<div class="paragraph">
+<p><strong>&#8220;Collision detection is not working for my new triangle.&#8221;</strong><br>
+<code>AddTri()</code> builds the <code>OBBTree</code> from the three points. If the three
+points are collinear (all on a line) the OBB has zero volume and no
+collision will be detected. Make sure your three points form a real
+triangle.</p>
+</div>
+<div class="paragraph">
+<p><strong>&#8220;The <code>Mechanism</code> tree has the joints but <code>mTip.Xfm</code> gives wrong
+results.&#8221;</strong><br>
+The mechanism’s forward kinematics only updates when joint angles are
+set through the <code>Mechanism</code> API (<code>JValue</code>). Make sure you are setting
+angles on the correct joint nodes (<code>mJoints[i]</code>, not some other
+node).</p>
+</div>
+</div>
+</div>
+
+                    </article>
+                </div>
+                <div id="site-toc-holder">
+                    <aside id="site-toc">
+ <h3>Contents</h3>
+ <ul>
+  <li level="1">
+   <a href="#_1_how_to_start_reading_the_code">1. How to start reading the code</a>
+  </li>
+  <li level="1">
+   <a href="#_2_mental_model_wpf_data_binding">2. Mental model: WPF data binding</a>
+  </li>
+  <li level="1">
+   <a href="#_3_mental_model_the_robot_arm">3. Mental model: the robot arm</a>
+  </li>
+  <li level="1">
+   <a href="#_4_mental_model_fk_vs_ik">4. Mental model: FK vs IK</a>
+  </li>
+  <li level="1">
+   <a href="#_5_mental_model_the_scene_graph_and_lux">5. Mental model: the scene graph and Lux</a>
+  </li>
+  <li level="1">
+   <a href="#_6_mental_model_the_script_player">6. Mental model: the script player</a>
+  </li>
+  <li level="1">
+   <a href="#_7_mental_model_how_the_pieces_talk_to_each_other">7. Mental model: how the pieces talk to each other</a>
+  </li>
+  <li level="1">
+   <a href="#_8_common_stumbling_blocks">8. Common stumbling blocks</a>
+  </li>
+ </ul>
+</aside>
+
+                </div>
+            </div>
+            <nav class="pagination">
+ <span class="prev"><a href="sequences.html">Functional Sequences</a></span>
+ <span class="next"><a href="code/index.html">Code details</a></span>
+</nav>
+
+        </div>
+        <div id="searchbox">
+          <input id="searchinput" type="search" placeholder="Search... (Key: F)" autocomplete="false" size="30" />
+          <ul id="results"></ul>
+        </div>
+    </div>
+    <footer id="site-footer">
+        <div class="left">
+            <p>&nbsp;&nbsp;Copyright &copy; 2023 by Metamation. All rights reserved.</p>
+        </div>
+        <div class="middle"></div>
+        <div class="right">
+            <p>Compiled by Bento</p>
+            <img src="res/bento.png" />
+        </div>
+    </footer>
+    <script>
+        // The baseLevel is used to assign the search result pages.
+        var baseLevel = "res".replace("res", "");
+    </script>
+    <script src="https://unpkg.com/lunr/lunr.js"></script>
+    <script src="res/index.js"></script>
+    <script src="res/files.js"></script>
+    <script src="res/site.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.3/highlight.min.js"></script>
+  <script>
+    if (!hljs.initHighlighting.called) {
+      hljs.initHighlighting.called = true
+      ;[].slice.call(document.querySelectorAll('pre.highlight > code[data-lang]')).forEach(function (el) { hljs.highlightBlock(el) })
+    }
+  </script>
+</body>
+</html>

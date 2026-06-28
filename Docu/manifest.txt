@@ -1,0 +1,4 @@
+TITLE=FROBOT
+OUTDIR=../html
+LOGO=img/logo.png,123,50
+COPYRIGHT=Copyright &copy; 2023 by Metamation. All rights reserved.

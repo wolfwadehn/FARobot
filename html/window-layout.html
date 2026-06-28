@@ -1,0 +1,344 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@400;600&family=Nunito+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="res/bento.css">
+  <link rel="stylesheet" href="res/site.css">
+  <link rel="stylesheet" href="res/tree.css">
+  <link rel="stylesheet" href="res/sibling.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  
+  <title>Window Layout</title>
+</head>
+<body id="site-body" onload="sLoaded()">
+    <header id="site-header">
+        <div id="header-logo"><img src="img/logo.png" width="123" height="50" /></div>
+        <div><p>FROBOT</p></div>
+    </header>
+    <div id="site-main">
+        <nav id="site-nav">
+            <div class="treesite">
+ <ul>
+  <li><button class="tree blank"></button><a href="index.html">FluxRobot</a></li>
+  <li><button class="tree blank"></button><a href="file-tree.html">Relevant File Tree</a></li>
+  <li><button class="tree blank"></button><a class="active" href="window-layout.html">Window Layout</a></li>
+  <li><button class="tree blank"></button><a href="sequences.html">Functional Sequences</a></li>
+  <li><button class="tree blank"></button><a href="beginner.html">Beginner’s Guide</a></li>
+  <li>
+   <button class="tree closed"></button>
+   <a href="code/index.html">Code details</a>
+   <ul class="hide">
+    <li><button class="tree blank"></button><a href="code/nori-guide.html">Practical Mental Model: Nori</a></li>
+    <li><button class="tree blank"></button><a href="code/function.html">Object Reference</a></li>
+    <li><button class="tree blank"></button><a href="code/scene-objects.html">Scene Objects</a></li>
+   </ul>
+  </li>
+  <li><button class="tree blank"></button><a href="flow/index.html">Flowcharts</a></li>
+ </ul>
+</div>
+
+        </nav>
+        <div id="site-nav-right">
+            <nav id="site-crumb">
+ <div>
+  <button>
+   <img src="res/home.png">
+  </button>
+ </div>
+ <div>
+  <a href="window-layout.html">Window Layout</a>
+ </div>
+</nav>
+
+            <div id="site-crumb-below">
+                <div id="site-toc-left">
+                    <article id="article">
+                        <h1>Window Layout</h1>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>FRobot has one main window and one floating sidebar window (the robot
+controls). There is no status bar — it was removed when the 2D drawing
+editor was eliminated.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_main_window">Main window</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Defined in <code>FRobot/MainWindow.xaml</code>.<br>
+The root element is a <code>DockPanel</code> that stacks three bands:</p>
+</div>
+<div class="literalblock">
+<div class="content">
+<pre>┌─────────────────────────────────────────────────┐
+│  Menu bar  (DockPanel.Dock="Top")               │
+├────┬────────────────────────────────────────────┤
+│ TB │                                            │
+│    │   3-D viewport  (mContent)                 │
+│    │                                            │
+└────┴────────────────────────────────────────────┘
+  TB = Toolbar host (mToolbarHost, 27 px wide, Dock="Left")</pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_menu_bar">Menu bar</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Defined in XAML; each <code>MenuItem</code> wires directly to a method in
+<code>MainWindow.xaml.cs</code> via <code>Click="MethodName"</code> — no indirection layer.</p>
+</div>
+<div class="paragraph">
+<p>|==
+|Menu |Item |Handler |Effect
+|File |Exit |<code>Exit()</code> |<code>Close()</code> — WPF closes the window
+|View |Zoom Extents |<code>ZoomExtents()</code> |<code>Lux.UIScene?.ZoomExtents()</code>
+|View |Robot… |<code>OpenRobot()</code> |Open / bring-to-front the robot sidebar
+|View |Robot Home |<code>RobotHome()</code> |<code>mRobotScene?.GoHome()</code>
+|View |TCP Legend… |<code>TcpLegend()</code> |Show RGB axis legend popup
+|— |About! |<code>About()</code> |Show version / expiry info
+|==</p>
+</div>
+<div class="paragraph">
+<p><code>Alt&#43;F4</code> closes the window natively (Windows default); no keyboard
+shortcut is registered for anything else.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_toolbar">Toolbar</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>mToolbarHost</code> is a 27 px-wide <code>Border</code> on the left edge. Its <code>Child</code> is
+a <code>Toolbar</code> instance (<code>FRobot/Widgets/Toolbar.cs</code>), which is a plain
+<code>StackPanel</code>.</p>
+</div>
+<div class="paragraph">
+<p>Buttons are added programmatically via
+<code>Toolbar.AddButton(icon, tooltip, action)</code>. Each call wraps a
+<code>TextBlock</code> icon in a <code>Border</code>, appends it to a <code>WrapPanel</code>, and adds
+that panel to the stack.</p>
+</div>
+<div class="paragraph">
+<p>|==
+|When added |Icon |Tooltip |Action
+|<code>OnLuxReady()</code> — always present |<code>⊕</code> |Show Robot Controls
+|<code>OpenRobot()</code></p>
+</div>
+<div class="paragraph">
+<p>|First call to <code>OpenRobot()</code> |<code>⚙</code> |TCP Offset |<code>ShowTcpOffsetDlg()</code>
+|==</p>
+</div>
+<div class="paragraph">
+<p>Hover highlight is <code>#E4E4EC</code>; no selected-state highlight (the
+toolbar carries no drawing-command mode concept any more).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_3_d_viewport">3-D viewport</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>mContent</code> is a <code>Border</code> that holds the Nori <code>WPFHost</code> GL control. The
+host is initialised in the constructor:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">mContent.Child = WPFHost.Init(this, OnLuxReady);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>OnLuxReady</code> fires once the OpenGL surface is ready. The active scene
+(<code>Lux.UIScene</code>) is always <code>mRobotScene</code> after startup.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_robot_sidebar_robotwindow">Robot sidebar (<code>RobotWindow</code>)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Defined in <code>FRobot/RobotWindow.xaml</code>.<br>
+It is a separate floating <code>Window</code> (not docked), positioned at the right
+edge of the work area:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">mRobotWin.Left = wa.Right - mRobotWin.Width - 10;
+mRobotWin.Top  = wa.Top;</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><strong>Visual identity:</strong> dark theme (<code>#252530</code> background, <code>#E8E8F0</code>
+text).<br>
+<strong>Width:</strong> fixed 320 px; height adjusts to content (max 800 px with
+scroll).</p>
+</div>
+<div class="paragraph">
+<p>The <code>DataContext</code> is <code>RobotScene.ViewModel</code> (a <code>RobotViewModel</code>
+instance), so all sliders and textboxes update automatically through WPF
+data binding.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_layout_top_to_bottom_inside_a_scrollviewer">Layout (top to bottom inside a <code>ScrollViewer</code>)</h2>
+<div class="sectionbody">
+<div class="literalblock">
+<div class="content">
+<pre>Forward Kinematics
+  [S] ──────●────  -180.0
+  [L] ────●──────   -45.2
+  [U] ──────────●  +120.0
+  [R] ──────────●   ...
+  [B] ...
+  [T] ...
+
+Inverse Kinematics
+  [Home Position]
+  X  ──────●────   750.0
+  Y  ──────●────     0.0
+  Z  ──────●────  1161.0
+  Rx ──────●────   -90.0
+  Ry ──────●────     0.0
+  Rz ──────●────     0.0
+
+Obstacle
+  BX ──────●────   700.0
+  BY ──────●────     0.0
+  BZ ──────●────   700.0
+
+Script
+  [path/to/robot_script.txt          ]
+  [Load]  [Add]  [Play]
+
+Collision Triangles
+  [Add Triangle…]
+  WorkpieceTop  Group1  [×]
+  TableEdge     Group1  [×]</pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Each slider row is a <code>StackPanel</code> containing: - A label <code>TextBlock</code> (22
+px wide, right-aligned) - A <code>Slider</code> (min width 130 px, two-way binding)
+- A <code>TextBox</code> (55 px, two-way binding through <code>DoubleConverter</code>)</p>
+</div>
+<div class="paragraph">
+<p>Both the slider and the textbox bind to the <strong>same ViewModel property</strong>,
+so editing either one updates the other automatically.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_dialogs">Dialogs</h2>
+<div class="sectionbody">
+
+</div>
+</div>
+<div class="sect1">
+<h2 id="_tcp_offset_dialog_tcpoffsetdialog_xaml">TCP Offset dialog (<code>TcpOffsetDialog.xaml</code>)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Opens from the ⚙ toolbar button.<br>
+Three text boxes (X, Y, Z) for the wrist-to-TCP vector in millimetres.<br>
+OK validates all three fields; Cancel discards.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_add_triangle_dialog_triangledialog_xaml">Add Triangle dialog (<code>TriangleDialog.xaml</code>)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Opens from the &#8220;Add Triangle…&#8221; button in the robot sidebar.<br>
+Fields: Name, Group, P1(X/Y/Z), P2(X/Y/Z), P3(X/Y/Z).<br>
+Import/Export buttons read/write a CSV file.</p>
+</div>
+<hr>
+</div>
+</div>
+
+                    </article>
+                </div>
+                <div id="site-toc-holder">
+                    <aside id="site-toc">
+ <h3>Contents</h3>
+ <ul>
+  <li level="1">
+   <a href="#_main_window">Main window</a>
+  </li>
+  <li level="1">
+   <a href="#_menu_bar">Menu bar</a>
+  </li>
+  <li level="1">
+   <a href="#_toolbar">Toolbar</a>
+  </li>
+  <li level="1">
+   <a href="#_3_d_viewport">3-D viewport</a>
+  </li>
+  <li level="1">
+   <a href="#_robot_sidebar_robotwindow">Robot sidebar (<code>RobotWindow</code>)</a>
+  </li>
+  <li level="1">
+   <a href="#_layout_top_to_bottom_inside_a_scrollviewer">Layout (top to bottom inside a <code>ScrollViewer</code>)</a>
+  </li>
+  <li level="1">
+   <a href="#_dialogs">Dialogs</a>
+  </li>
+  <li level="1">
+   <a href="#_tcp_offset_dialog_tcpoffsetdialog_xaml">TCP Offset dialog (<code>TcpOffsetDialog.xaml</code>)</a>
+  </li>
+  <li level="1">
+   <a href="#_add_triangle_dialog_triangledialog_xaml">Add Triangle dialog (<code>TriangleDialog.xaml</code>)</a>
+  </li>
+ </ul>
+</aside>
+
+                </div>
+            </div>
+            <nav class="pagination">
+ <span class="prev"><a href="file-tree.html">Relevant File Tree</a></span>
+ <span class="next"><a href="sequences.html">Functional Sequences</a></span>
+</nav>
+
+        </div>
+        <div id="searchbox">
+          <input id="searchinput" type="search" placeholder="Search... (Key: F)" autocomplete="false" size="30" />
+          <ul id="results"></ul>
+        </div>
+    </div>
+    <footer id="site-footer">
+        <div class="left">
+            <p>&nbsp;&nbsp;Copyright &copy; 2023 by Metamation. All rights reserved.</p>
+        </div>
+        <div class="middle"></div>
+        <div class="right">
+            <p>Compiled by Bento</p>
+            <img src="res/bento.png" />
+        </div>
+    </footer>
+    <script>
+        // The baseLevel is used to assign the search result pages.
+        var baseLevel = "res".replace("res", "");
+    </script>
+    <script src="https://unpkg.com/lunr/lunr.js"></script>
+    <script src="res/index.js"></script>
+    <script src="res/files.js"></script>
+    <script src="res/site.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.3/highlight.min.js"></script>
+  <script>
+    if (!hljs.initHighlighting.called) {
+      hljs.initHighlighting.called = true
+      ;[].slice.call(document.querySelectorAll('pre.highlight > code[data-lang]')).forEach(function (el) { hljs.highlightBlock(el) })
+    }
+  </script>
+</body>
+</html>

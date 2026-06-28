@@ -1,0 +1,453 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Encode+Sans+Semi+Condensed:wght@400;600&family=Nunito+Sans:ital,wght@0,400;0,600;1,400;1,600&family=Roboto+Mono:ital,wght@0,400;0,600;1,400;1,600&display=block" rel="stylesheet">
+  <link rel="stylesheet" href="../res/bento.css">
+  <link rel="stylesheet" href="../res/site.css">
+  <link rel="stylesheet" href="../res/tree.css">
+  <link rel="stylesheet" href="../res/sibling.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  
+  <title>Practical Mental Model: Nori</title>
+</head>
+<body id="site-body" onload="sLoaded()">
+    <header id="site-header">
+        <div id="header-logo"><img src="../img/logo.png" width="123" height="50" /></div>
+        <div><p>FROBOT</p></div>
+    </header>
+    <div id="site-main">
+        <nav id="site-nav">
+            <div class="treesite">
+ <ul>
+  <li><button class="tree blank"></button><a href="../index.html">FluxRobot</a></li>
+  <li><button class="tree blank"></button><a href="../file-tree.html">Relevant File Tree</a></li>
+  <li><button class="tree blank"></button><a href="../window-layout.html">Window Layout</a></li>
+  <li><button class="tree blank"></button><a href="../sequences.html">Functional Sequences</a></li>
+  <li><button class="tree blank"></button><a href="../beginner.html">Beginner’s Guide</a></li>
+  <li>
+   <button class="tree open"></button>
+   <a href="index.html">Code details</a>
+   <ul>
+    <li><button class="tree blank"></button><a class="active" href="nori-guide.html">Practical Mental Model: Nori</a></li>
+    <li><button class="tree blank"></button><a href="function.html">Object Reference</a></li>
+    <li><button class="tree blank"></button><a href="scene-objects.html">Scene Objects</a></li>
+   </ul>
+  </li>
+  <li><button class="tree blank"></button><a href="../flow/index.html">Flowcharts</a></li>
+ </ul>
+</div>
+
+        </nav>
+        <div id="site-nav-right">
+            <nav id="site-crumb">
+ <div>
+  <button>
+   <img src="../res/home.png">
+  </button>
+ </div>
+ <div>
+  <a href="index.html">Code details</a>
+ </div>
+ <div>/</div>
+ <div>
+  <a href="nori-guide.html">Practical Mental Model: Nori</a>
+ </div>
+</nav>
+
+            <div id="site-crumb-below">
+                <div id="site-toc-left">
+                    <article id="article">
+                        <h1>Practical Mental Model: Nori</h1>
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Nori is the internal rendering and geometry library that FRobot is built
+on. You interact with it through three assemblies:</p>
+</div>
+<div class="paragraph">
+<p>|==
+|Assembly |What it gives you
+|<code>Nori.Core</code> |Math types, file I/O, geometry
+|<code>Nori.Lux</code> |3-D rendering (scenes, VNodes, draw calls)
+|<code>Nori.Host.WPF</code> |WPF integration (GL host control, input observables)
+|==</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_the_lux_render_loop">The Lux render loop</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>You never write a render loop yourself. Nori runs it internally.</p>
+</div>
+<div class="paragraph">
+<p>Your job is to: 1. Set <code>Lux.UIScene</code> to the scene you want rendered. 2.
+Build a tree of <code>VNode</code> objects and assign it to <code>scene.Root</code>. 3.
+Implement <code>Draw()</code> and <code>SetAttributes()</code> on each VNode.</p>
+</div>
+<div class="paragraph">
+<p>Lux calls your nodes every frame (or on demand for non-streaming nodes).</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_setattributes_vs_draw"><code>SetAttributes()</code> vs <code>Draw()</code></h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">public override void SetAttributes () {
+    Lux.Color     = Color4.Red;
+    Lux.LineWidth = 2f;
+    Lux.ZLevel    = 10;     // draw-order layer; higher = on top
+}
+
+public override void Draw () {
+    Span&lt;Vec3F&gt; pts = ...;
+    Lux.Lines (pts);        // or Lux.Text(), Lux.Points(), etc.
+}</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>SetAttributes</code> is called first each frame to configure OpenGL state.<br>
+<code>Draw</code> is called immediately after to emit geometry.<br>
+Never do heavy computation in <code>Draw</code> — precompute in <code>SetAttributes</code> or
+in response to data changes.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_when_does_draw_get_called">When does <code>Draw</code> get called?</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><strong><code>Streaming = true</code></strong> — every frame, unconditionally (use for animated
+content like <code>TcpVN</code> and <code>InfoVN</code>).</p>
+</li>
+<li>
+<p><strong>Default</strong> — only when the node is marked dirty (<code>Redraw()</code> is called,
+or the scene refreshes).</p>
+</li>
+<li>
+<p><strong><code>[RedrawOnZoom]</code> attribute</strong> — also re-draws when the user
+pans or zooms (needed for any geometry expressed in screen-space units).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Call <code>node.Redraw()</code> to request a redraw of a specific node.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_key_lux_draw_calls">Key Lux draw calls</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// Lines: each consecutive pair of points is one line segment
+Lux.Lines (Span&lt;Vec2F&gt; pts);   // 2-D
+Lux.Lines (Span&lt;Vec3F&gt; pts);   // 3-D
+
+// Points
+Lux.Points (Span&lt;Vec3F&gt; pts);
+
+// Text (2-D, screen-space)
+Lux.Text (string text, Vec2S pixelPos);
+Lux.Text2D (string text, Point2 worldPos, ETextAlign align, Vec2S pixelOffset);
+
+// 3-D mesh (typically via Mesh3VN, not direct calls)</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Set drawing properties <em>before</em> the draw call — they are not parameters:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">Lux.Color     = Color4.Green;   // RGBA as bytes
+Lux.LineWidth = 1.5f;
+Lux.PointSize = 9f;
+Lux.TypeFace  = myFace;
+Lux.ZLevel    = 70;             // 0–100; default 0</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_scenes">Scenes</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// Activate a scene (replaces whatever was shown before)
+Lux.UIScene = new RobotScene();
+
+// Scene3 base class — you fill in:
+BgrdColor = Color4.Gray(64);
+Bound     = new Bound3(-1200, -1200, 0, 1200, 1200, 1500);
+Root      = new GroupVN([nodeA, nodeB, ...]);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>Bound</code> controls the initial camera fit when <code>ZoomExtents()</code> is called.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_sub_scenes_picture_in_picture">Sub-scenes (picture-in-picture)</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// Show a second scene in a rectangle (0–1 normalized coords)
+Lux.AddSubScene(anotherScene, new Rect2(0.75, 0.75, 0.95, 0.95));
+Lux.RemoveSubScene(anotherScene);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>FRobot no longer uses sub-scenes (the fold-preview was removed with the
+drawing editor).</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_vnode_lifetime">VNode lifetime</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>VNodes live as long as you hold a reference. Add them to a <code>GroupVN</code> to
+make them visible; remove them to hide them:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">GroupVN group = new GroupVN([]);
+group.Add(myNode);      // now visible
+group.Remove(myNode);   // now hidden</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>GroupVN</code> is just a container — it has no visual output of its own.</p>
+</div>
+<div class="paragraph">
+<p><code>XfmVN</code> applies a <code>Matrix3</code> transform to its single child:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">var mBoxXfm = new XfmVN(Matrix3.Translation(x, y, z), mBoxVN);
+// Later, to move the box:
+mBoxXfm.Xfm = Matrix3.Translation(newX, newY, newZ);</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_mechanism_robot_kinematics">Mechanism (robot kinematics)</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// Load the arm description
+Mechanism root = Mechanism.Load("path/to/mechanism.curl");
+
+// Navigate the tree
+Mechanism tip = root.FindChild("Tip")!;
+Mechanism[] joints = "SLURBT".Select(c =&gt; root.FindChild(c.ToString())!).ToArray();
+
+// Set a joint angle (radians internally, degrees for display)
+joints[0].JValue = 45.0.D2R();   // D2R() = degrees to radians
+
+// Read the world transform of any node (updated by the mechanism after JValue set)
+Matrix3 tipWorld = tip.Xfm;
+
+// Iterate all nodes
+foreach (Mechanism m in root.EnumTree()) { ... }</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The mechanism computes forward kinematics automatically when <code>JValue</code>
+changes. You just read <code>m.Xfm</code> to get the result.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_obb_collision_detection">OBB collision detection</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>OBB = Oriented Bounding Box. <code>OBBTree</code> is a hierarchy of OBBs for fast
+overlap queries.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">// Build once from a mesh
+OBBTree obb = OBBTree.From(myMesh);
+
+// Transform to world space (does not modify the original)
+OBBTree obbWorld = obb.With(worldMatrix);
+
+// Check collision — borrow a collider to avoid allocation
+using var bc = OBBCollider.Borrow();
+bool hit = bc.Check(obbA, obbB);</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Borrow / return pattern avoids per-frame allocation. Always use <code>using</code>.</p>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_useful_math_types">Useful math types</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>|==
+|Type |Description
+|<code>Point3(x,y,z)</code> |A position in 3-D space</p>
+</div>
+<div class="paragraph">
+<p>|<code>Vector3(x,y,z)</code> |A direction / displacement</p>
+</div>
+<div class="paragraph">
+<p>|<code>Matrix3</code> |4×4 homogeneous transform; <code>Matrix3.Translation(x,y,z)</code>,
+<code>.Rotation(EAxis.X, rad)</code></p>
+</div>
+<div class="paragraph">
+<p>|<code>CoordSystem</code> |A position &#43; three axes; <code>CoordSystem.World</code> =
+identity</p>
+</div>
+<div class="paragraph">
+<p>|<code>Bound3</code> |Axis-aligned bounding box in 3-D</p>
+</div>
+<div class="paragraph">
+<p>|<code>Color4(a,r,g,b)</code> |ARGB color as bytes; <code>Color4.Red</code>, <code>.Blue</code>,
+<code>.Gray(n)</code></p>
+</div>
+<div class="paragraph">
+<p>|<code>Vec3F(x,y,z)</code> |Single-precision 3-D vector used in draw calls</p>
+</div>
+<div class="paragraph">
+<p>|<code>Vec2S(x,y)</code> |Integer 2-D vector (pixel coordinates)
+|==</p>
+</div>
+<div class="paragraph">
+<p>Extension methods you will see everywhere:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">45.0.D2R()   // degrees → radians
+1.5.R2D()    // radians → degrees
+x.Clamp()    // clamp to [0,1]
+x.Clamp(lo, hi)
+x.EQ(y)      // double equality with epsilon</code></pre>
+</div>
+</div>
+<hr>
+</div>
+</div>
+<div class="sect1">
+<h2 id="_lib_the_global_toolkit"><code>Lib</code> — the global toolkit</h2>
+<div class="sectionbody">
+<div class="listingblock">
+<div class="content">
+<pre class="highlightjs highlight"><code class="language-csharp hljs" data-lang="csharp">Lib.Init()                         // must be called once at startup
+Lib.Register(locator)              // register an asset source (files or zip)
+Lib.ReadLines("pix:path/to.txt")   // read text asset
+Lib.ReadBytes("pix:path/to.ttf")   // read binary asset
+Lib.Trace("debug message")         // prints via Lib.Tracer delegate
+Lib.Post(action)                   // queue an action on the UI thread
+Lib.GetLocalFile("name.ext")       // path in the app's local data folder</code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The <code>"pix:"</code> prefix is a registered asset namespace. In dev mode it maps
+to <code>F:/Wad/</code>; in release it maps to <code>FRobot.wad</code> (a zip file).</p>
+</div>
+</div>
+</div>
+
+                    </article>
+                </div>
+                <div id="site-toc-holder">
+                    <aside id="site-toc">
+ <h3>Contents</h3>
+ <ul>
+  <li level="1">
+   <a href="#_the_lux_render_loop">The Lux render loop</a>
+  </li>
+  <li level="1">
+   <a href="#_setattributes_vs_draw"><code>SetAttributes()</code> vs <code>Draw()</code></a>
+  </li>
+  <li level="1">
+   <a href="#_when_does_draw_get_called">When does <code>Draw</code> get called?</a>
+  </li>
+  <li level="1">
+   <a href="#_key_lux_draw_calls">Key Lux draw calls</a>
+  </li>
+  <li level="1">
+   <a href="#_scenes">Scenes</a>
+  </li>
+  <li level="1">
+   <a href="#_sub_scenes_picture_in_picture">Sub-scenes (picture-in-picture)</a>
+  </li>
+  <li level="1">
+   <a href="#_vnode_lifetime">VNode lifetime</a>
+  </li>
+  <li level="1">
+   <a href="#_mechanism_robot_kinematics">Mechanism (robot kinematics)</a>
+  </li>
+  <li level="1">
+   <a href="#_obb_collision_detection">OBB collision detection</a>
+  </li>
+  <li level="1">
+   <a href="#_useful_math_types">Useful math types</a>
+  </li>
+  <li level="1">
+   <a href="#_lib_the_global_toolkit"><code>Lib</code> — the global toolkit</a>
+  </li>
+ </ul>
+</aside>
+
+                </div>
+            </div>
+            <nav class="pagination">
+ <span class="prev"><a href="index.html">Code details</a></span>
+ <span class="next"><a href="function.html">Object Reference</a></span>
+</nav>
+
+        </div>
+        <div id="searchbox">
+          <input id="searchinput" type="search" placeholder="Search... (Key: F)" autocomplete="false" size="30" />
+          <ul id="results"></ul>
+        </div>
+    </div>
+    <footer id="site-footer">
+        <div class="left">
+            <p>&nbsp;&nbsp;Copyright &copy; 2023 by Metamation. All rights reserved.</p>
+        </div>
+        <div class="middle"></div>
+        <div class="right">
+            <p>Compiled by Bento</p>
+            <img src="../res/bento.png" />
+        </div>
+    </footer>
+    <script>
+        // The baseLevel is used to assign the search result pages.
+        var baseLevel = "../res".replace("res", "");
+    </script>
+    <script src="https://unpkg.com/lunr/lunr.js"></script>
+    <script src="../res/index.js"></script>
+    <script src="../res/files.js"></script>
+    <script src="../res/site.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.18.3/highlight.min.js"></script>
+  <script>
+    if (!hljs.initHighlighting.called) {
+      hljs.initHighlighting.called = true
+      ;[].slice.call(document.querySelectorAll('pre.highlight > code[data-lang]')).forEach(function (el) { hljs.highlightBlock(el) })
+    }
+  </script>
+</body>
+</html>
